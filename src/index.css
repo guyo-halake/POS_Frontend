@@ -1,0 +1,406 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Teal / Blue modern retail palette */
+    --background: 195 55% 97%;
+    --foreground: 210 18% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 18% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 18% 12%;
+
+    /* Primary: teal-blue */
+    --primary: 185 65% 38%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 185 60% 95%;
+    --secondary-foreground: 210 18% 12%;
+
+    --muted: 195 30% 96%;
+    --muted-foreground: 210 10% 40%;
+
+    --accent: 190 80% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success green */
+    --success: 145 72% 33%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning amber */
+    --warning: 39 96% 52%;
+    --warning-foreground: 0 0% 10%;
+
+    /* Info blue */
+    --info: 200 90% 50%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 195 30% 90%;
+    --input: 195 30% 90%;
+    --ring: 185 65% 38%;
+
+    --radius: 0.5rem;
+
+    /* Softer shadows for a modern flat look */
+    --shadow-sm: 0 1px 2px 0 hsl(210 18% 12% / 0.04);
+    --shadow-md: 0 6px 18px -8px hsl(210 18% 12% / 0.06);
+    --shadow-lg: 0 10px 30px -12px hsl(210 18% 12% / 0.07);
+    --shadow-xl: 0 18px 50px -18px hsl(210 18% 12% / 0.08);
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 210 18% 12%;
+    --sidebar-primary: 185 65% 38%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 195 30% 96%;
+    --sidebar-accent-foreground: 210 18% 12%;
+    --sidebar-border: 195 30% 90%;
+    --sidebar-ring: 185 65% 38%;
+  }
+
+  .dark {
+    --background: 220 28% 9%;
+    --foreground: 210 25% 96%;
+
+    --card: 220 28% 12%;
+    --card-foreground: 210 25% 96%;
+
+    --popover: 220 28% 12%;
+    --popover-foreground: 210 25% 96%;
+
+    --primary: 0 78% 56%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 20% 18%;
+    --secondary-foreground: 210 25% 92%;
+
+    --muted: 220 20% 18%;
+    --muted-foreground: 210 10% 64%;
+
+    --accent: 214 92% 56%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 10%;
+
+    --info: 210 80% 55%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 220 20% 20%;
+    --input: 220 20% 20%;
+    --ring: 0 78% 56%;
+
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -2px hsl(0 0% 0% / 0.3);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.4), 0 4px 6px -4px hsl(0 0% 0% / 0.3);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.5), 0 8px 10px -6px hsl(0 0% 0% / 0.4);
+
+    --sidebar-background: 220 28% 10%;
+    --sidebar-foreground: 210 25% 96%;
+    --sidebar-primary: 0 78% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 18%;
+    --sidebar-accent-foreground: 210 25% 92%;
+    --sidebar-border: 220 20% 20%;
+    --sidebar-ring: 0 78% 56%;
+  }
+}
+
+body {
+    font-family: 'Sora', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    background-color: hsl(var(--background));
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(185, 65%, 38%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(190, 80%, 45%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(145, 72%, 33%, 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(200, 90%, 50%, 0.1) 0px, transparent 50%);
+    background-attachment: fixed;
+}
+
+.brand-title {
+     font-family: 'Sora', system-ui, sans-serif;
+     font-weight: 700;
+}
+
+.keypad-btn {
+     font-family: 'Sora', Inter, system-ui, sans-serif;
+     border-radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+       @apply bg-background text-foreground font-sans antialiased;
+       font-family: 'Sora', 'Inter', system-ui, sans-serif;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full hover:bg-muted-foreground/50 transition-colors;
+  }
+}
+
+@layer components {
+  /* Dashboard stat cards */
+  .stat-card {
+    @apply bg-card rounded-lg p-4 transition-all duration-200;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* POS product cards */
+  .product-card {
+    @apply bg-card rounded-lg p-3 cursor-pointer transition-all duration-200 border border-transparent;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .product-card:hover {
+    @apply border-accent/20;
+    box-shadow: var(--shadow-md);
+  }
+
+  .product-card:active {
+    @apply scale-[0.98];
+  }
+
+  /* Cart items */
+  .cart-item {
+    @apply bg-secondary/40 rounded-md p-2 transition-all duration-150;
+  }
+
+  /* Navigation items */
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-muted-foreground hover:text-foreground hover:bg-secondary;
+  }
+
+  .nav-item.active {
+    @apply bg-primary text-primary-foreground font-medium;
+  }
+
+  /* Mobile bottom nav */
+  .mobile-nav-item {
+    @apply flex flex-col items-center justify-center gap-1 p-2 rounded-xl transition-all duration-200 text-muted-foreground;
+  }
+
+  .mobile-nav-item.active {
+    @apply text-primary bg-primary/10;
+  }
+
+  /* Low stock badge */
+  .low-stock-badge {
+    @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-warning/15 text-warning;
+  }
+
+  /* Status badges */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .status-badge.success {
+    @apply bg-success/15 text-success;
+  }
+
+  .status-badge.warning {
+    @apply bg-warning/15 text-warning;
+  }
+
+  .status-badge.error {
+    @apply bg-destructive/15 text-destructive;
+  }
+
+  .status-badge.info {
+    @apply bg-info/15 text-info;
+  }
+
+  /* Glass effect for modals */
+  .glass-overlay {
+    @apply bg-background/80 backdrop-blur-sm;
+  }
+
+  /* Receipt styling */
+  .receipt {
+    @apply bg-white text-gray-900 font-mono text-sm p-4 rounded-md;
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Keypad buttons */
+  .keypad-btn {
+    @apply flex items-center justify-center w-16 h-16 rounded-lg text-xl font-semibold bg-secondary text-secondary-foreground transition-colors duration-150 hover:bg-secondary/80 active:scale-95 shadow-sm;
+  }
+
+  .keypad-btn.primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/95;
+  }
+
+  .keypad-btn.accent {
+    @apply bg-accent text-accent-foreground hover:bg-accent/90;
+  }
+
+  /* Glassmorphism Panels */
+  .glass-panel {
+    @apply bg-card/60 backdrop-blur-md border border-white/20 shadow-lg dark:bg-black/40 dark:border-white/10;
+  }
+
+  /* Realistic Thermal Receipt */
+  .receipt-paper {
+    @apply relative bg-[#fdfbf7] text-[#111] shadow-md;
+    font-family: 'Courier New', Courier, monospace;
+  }
+  
+  .dark .receipt-paper {
+    @apply bg-[#1a1a1a] text-[#eee];
+  }
+
+  /* Zig-zag torn edge at the bottom */
+  .receipt-paper::after {
+    content: "";
+    position: absolute;
+    bottom: -10px;
+    left: 0;
+    right: 0;
+    height: 10px;
+    background-size: 20px 20px;
+    background-image: radial-gradient(circle at 10px 0, transparent 12px, #fdfbf7 13px);
+    z-index: 10;
+  }
+
+  .dark .receipt-paper::after {
+    background-image: radial-gradient(circle at 10px 0, transparent 12px, #1a1a1a 13px);
+  }
+
+  /* Animations for receipt items */
+  @keyframes receiptSlideDown {
+    0% {
+      opacity: 0;
+      transform: translateY(-20px) scale(0.95);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .receipt-item-enter {
+    animation: receiptSlideDown 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+
+  @keyframes pulseRadar {
+    0% {
+      box-shadow: 0 0 0 0 rgba(0, 176, 80, 0.4);
+    }
+    70% {
+      box-shadow: 0 0 0 40px rgba(0, 176, 80, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(0, 176, 80, 0);
+    }
+  }
+
+  .radar-pulse {
+    animation: pulseRadar 2s infinite;
+  }
+
+  @keyframes receiptPrintSlide {
+    0% {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .receipt-printing {
+    animation: receiptPrintSlide 1.5s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+  }
+}
+
+@layer utilities {
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
+  }
+
+  /* Fade in animation */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Slide up animation */
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Pulse animation for alerts */
+  .animate-pulse-soft {
+    animation: pulseSoft 2s ease-in-out infinite;
+  }
+
+  @keyframes pulseSoft {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  /* Number input without spinners */
+  .no-spinners::-webkit-outer-spin-button,
+  .no-spinners::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .no-spinners[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
