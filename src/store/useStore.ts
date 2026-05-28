@@ -163,15 +163,15 @@ export const useStore = create<AppState>()(
             },
       isAuthenticated: false,
       products: [],
-            // Fetch products from backend
-            fetchProducts: async () => {
-              try {
-                const businessId = get().activeBusinessId || 1;
-                const res = await apiFetch('/api/products', {
-                    headers: { 'x-business-id': String(businessId) }
-                });
-                const data = await res.json();
-                set({ products: data });
+      // Fetch products from backend
+      fetchProducts: async () => {
+        try {
+          const businessId = get().activeBusinessId || '11111111-1111-1111-1111-111111111111';
+          const res = await apiFetch('/api/products', {
+              headers: { 'x-business-id': String(businessId) }
+          });
+          const data = await res.json();
+          set({ products: data });
               } catch (err) {
                 console.error('Failed to fetch products', err);
               }
@@ -201,7 +201,7 @@ export const useStore = create<AppState>()(
       setCurrentUser: (user) => set({ 
         currentUser: user, 
         isAuthenticated: !!user,
-        activeBusinessId: user?.business?.id || 1 
+        activeBusinessId: user?.business?.id || '11111111-1111-1111-1111-111111111111' 
       }),
       setActiveBusiness: (id) => set({ activeBusinessId: id }),
       setTillNumber: (id) => set({ tillNumber: id }),
@@ -216,7 +216,13 @@ export const useStore = create<AppState>()(
           });
           const data = await res.json();
           if (data.success) {
-            set({ currentUser: data.user, isAuthenticated: true });
+            const bizId = data.user?.business_id || data.user?.business?.id || '11111111-1111-1111-1111-111111111111';
+            set({ 
+              currentUser: data.user, 
+              isAuthenticated: true,
+              activeBusinessId: bizId
+            });
+            get().fetchProducts();
             return true;
           }
           return false;
@@ -227,7 +233,7 @@ export const useStore = create<AppState>()(
       },
 
       logout: () => {
-        set({ currentUser: null, isAuthenticated: false, cart: [] });
+        set({ currentUser: null, isAuthenticated: false, cart: [], products: [], activeBusinessId: '11111111-1111-1111-1111-111111111111' });
       },
 
       addUser: async (userData) => {
@@ -615,6 +621,9 @@ export const useStore = create<AppState>()(
     {
       name: 'freshfity-store',
       partialize: (state) => ({
+        currentUser: state.currentUser,
+        isAuthenticated: state.isAuthenticated,
+        activeBusinessId: state.activeBusinessId,
         products: state.products,
         users: state.users,
         sales: state.sales,

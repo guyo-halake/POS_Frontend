@@ -53,7 +53,8 @@ export const POSPage: React.FC = () => {
   } = useStore();
 
   const bizName = currentUser?.business?.name || 'FRESH FITY SUPERMARKET';
-  const bizPhone = currentUser?.business?.phone || '0712 345678';
+  const bizLogo = currentUser?.business?.logo;
+  const bizPhone = currentUser?.business?.phone || '07XXXXXXXX';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -575,6 +576,9 @@ export const POSPage: React.FC = () => {
         <div className="receipt-paper flex flex-col min-h-[60%] flex-1 rounded-t-lg mx-2 lg:mx-0 overflow-hidden pb-4">
           <div className="border-b border-black/10 dark:border-white/10 px-4 py-4 text-center">
             <div className="flex flex-col items-center gap-1">
+              {bizLogo && (
+                 <img src={bizLogo} alt={`${bizName} Logo`} className="max-w-[120px] max-h-[80px] object-contain mb-2" />
+              )}
               <span className="text-xl font-bold uppercase tracking-widest">{bizName}</span>
               <span className="text-xs">Ruiru</span>
               <span className="text-xs">Till {tillNumber ?? '—'} • {currentUser?.name ?? '—'}</span>
@@ -928,6 +932,9 @@ export const POSPage: React.FC = () => {
             }}
           >
             <div className="text-center mb-2">
+              {bizLogo && (
+                 <img src={bizLogo} alt={`${bizName} Logo`} style={{ maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }} />
+              )}
               <div style={{ fontWeight: 'bold', fontSize: '1.1em' }} className="uppercase">{bizName}</div>
               <div>Ruiru</div>
               <div>Tel: {bizPhone}</div>
