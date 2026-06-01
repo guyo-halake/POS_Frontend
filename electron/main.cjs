@@ -10,7 +10,7 @@ let backendProcess = null;
 
 function backendEntryPath() {
   if (isDev) return path.resolve(__dirname, '..', '..', 'Rosemary-POS---Backend', 'app.js');
-  return path.join(process.resourcesPath, 'backend', 'app.js');
+  return path.join(process.resourcesPath, 'backend', 'index.js');
 }
 
 function backendWorkingDir() {

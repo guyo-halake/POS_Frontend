@@ -4,6 +4,7 @@ import { Product } from '@/data/products';
 import { User } from '@/data/users';
 import { API_BASE_URL } from '@/config/api';
 import { apiFetch } from '@/lib/apiClient';
+import { toast } from 'sonner';
 
 export interface CartItem {
   product: Product;
@@ -90,6 +91,9 @@ interface AppState {
   // Screensaver / Inactivity
   inactivityTimeoutMinutes: number;
   allowScreensaverOnMobile: boolean;
+
+  // Hardware State
+  scannerConnected: boolean;
   
   // Auth Actions
   setCurrentUser: (user: User | null) => void;
@@ -128,6 +132,7 @@ interface AppState {
   setTillNumber: (id: string | number | null) => void;
   setInactivityTimeoutMinutes: (m: number) => void;
   setAllowScreensaverOnMobile: (v: boolean) => void;
+  setScannerConnected: (connected: boolean) => void;
 
   // Shift Actions
   startShift: () => void;
@@ -163,15 +168,15 @@ export const useStore = create<AppState>()(
             },
       isAuthenticated: false,
       products: [],
-            // Fetch products from backend
-            fetchProducts: async () => {
-              try {
-                const businessId = get().activeBusinessId || 1;
-                const res = await apiFetch('/api/products', {
-                    headers: { 'x-business-id': String(businessId) }
-                });
-                const data = await res.json();
-                set({ products: data });
+      // Fetch products from backend
+      fetchProducts: async () => {
+        try {
+          const businessId = get().activeBusinessId || '11111111-1111-1111-1111-111111111111';
+          const res = await apiFetch('/api/products', {
+              headers: { 'x-business-id': String(businessId) }
+          });
+          const data = await res.json();
+          set({ products: data });
               } catch (err) {
                 console.error('Failed to fetch products', err);
               }
@@ -196,17 +201,19 @@ export const useStore = create<AppState>()(
       activeBusinessId: null,
       inactivityTimeoutMinutes: 5,
       allowScreensaverOnMobile: false,
+      scannerConnected: false,
 
       // Auth Actions
       setCurrentUser: (user) => set({ 
         currentUser: user, 
         isAuthenticated: !!user,
-        activeBusinessId: user?.business?.id || 1 
+        activeBusinessId: user?.business?.id || '11111111-1111-1111-1111-111111111111' 
       }),
       setActiveBusiness: (id) => set({ activeBusinessId: id }),
       setTillNumber: (id) => set({ tillNumber: id }),
       setInactivityTimeoutMinutes: (m) => set({ inactivityTimeoutMinutes: m }),
       setAllowScreensaverOnMobile: (v) => set({ allowScreensaverOnMobile: v }),
+      setScannerConnected: (connected) => set({ scannerConnected: connected }),
       login: async (pin: string) => {
         try {
           const res = await apiFetch('/api/users/login', {
@@ -216,7 +223,13 @@ export const useStore = create<AppState>()(
           });
           const data = await res.json();
           if (data.success) {
-            set({ currentUser: data.user, isAuthenticated: true });
+            const bizId = data.user?.business_id || data.user?.business?.id || '11111111-1111-1111-1111-111111111111';
+            set({ 
+              currentUser: data.user, 
+              isAuthenticated: true,
+              activeBusinessId: bizId
+            });
+            get().fetchProducts();
             return true;
           }
           return false;
@@ -227,7 +240,7 @@ export const useStore = create<AppState>()(
       },
 
       logout: () => {
-        set({ currentUser: null, isAuthenticated: false, cart: [] });
+        set({ currentUser: null, isAuthenticated: false, cart: [], products: [], activeBusinessId: '11111111-1111-1111-1111-111111111111' });
       },
 
       addUser: async (userData) => {
@@ -237,12 +250,15 @@ export const useStore = create<AppState>()(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...userData, avatar: userData.avatar || '👤' })
           });
-          const newUser = await res.json();
-          if (newUser && !newUser.error) {
-             set(state => ({ users: [...state.users, newUser] }));
+          const result = await res.json();
+          if (result.success && result.user) {
+             set(state => ({ users: [...state.users, result.user] }));
+             return { success: true };
           }
+          return { success: false, error: result.error || 'Failed to add user' };
         } catch (err) {
           console.error("Failed to add user", err);
+          return { success: false, error: 'Network error' };
         }
       },
 
@@ -277,16 +293,24 @@ export const useStore = create<AppState>()(
       // Product Actions
       addProduct: async (productData) => {
         try {
-          // Optimistic update (optional, but waiting for ID from DB is safer for new items)
+          const bizId = String(get().activeBusinessId || '11111111-1111-1111-1111-111111111111');
           const res = await apiFetch('/api/products', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-business-id': bizId
+            },
             body: JSON.stringify(productData)
           });
           const newProduct = await res.json();
           set(state => ({ products: [...state.products, newProduct] }));
+          toast.success("Product successfully synced to cloud database!");
         } catch (err) {
           console.error("Failed to add product to DB", err);
+          toast.error("Failed to sync product to cloud. It will be stored locally.");
+          // Fallback optimistic update for offline
+          const fallbackProduct = { ...productData, id: Date.now() } as Product;
+          set(state => ({ products: [...state.products, fallbackProduct] }));
         }
       },
 
@@ -615,6 +639,9 @@ export const useStore = create<AppState>()(
     {
       name: 'freshfity-store',
       partialize: (state) => ({
+        currentUser: state.currentUser,
+        isAuthenticated: state.isAuthenticated,
+        activeBusinessId: state.activeBusinessId,
         products: state.products,
         users: state.users,
         sales: state.sales,

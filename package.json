@@ -1,6 +1,10 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
+  "author": {
+    "name": "P3L",
+    "email": "support@freshfity.com"
+  },
   "version": "0.0.0",
   "type": "module",
   "main": "electron/main.cjs",
@@ -10,10 +14,10 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "desktop:dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:8080 && electron .\"",
-    "desktop:build": "vite build && electron-builder",
+    "desktop:dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:8080 && electron . --no-sandbox\"",
+    "desktop:build": "vite build && electron-builder --linux",
     "desktop:pack": "electron-builder --dir",
-    "desktop:dist": "electron-builder"
+    "desktop:dist": "electron-builder --linux"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -55,6 +59,7 @@
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
+    "papaparse": "^5.5.3",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -67,6 +72,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
+    "xlsx": "^0.18.5",
     "zod": "^3.25.76",
     "zustand": "^5.0.9"
   },
@@ -74,6 +80,7 @@
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react-swc": "^3.11.0",
@@ -95,7 +102,7 @@
   },
   "build": {
     "appId": "com.p3l.pos",
-    "productName": "P3L POS",
+    "productName": "P3LPOS",
     "files": [
       "dist/**",
       "electron/**",
@@ -103,8 +110,12 @@
     ],
     "extraResources": [
       {
-        "from": "../Rosemary-POS---Backend",
+        "from": "../Rosemary-POS---Backend/dist",
         "to": "backend"
+      },
+      {
+        "from": "../Rosemary-POS---Backend/.env",
+        "to": "backend/.env"
       }
     ],
     "directories": {

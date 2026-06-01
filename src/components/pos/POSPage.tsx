@@ -49,11 +49,13 @@ export const POSPage: React.FC = () => {
     removeCartTab,
     currentUser,
     currentShift,
-    tillNumber
+    tillNumber,
+    setScannerConnected
   } = useStore();
 
   const bizName = currentUser?.business?.name || 'FRESH FITY SUPERMARKET';
-  const bizPhone = currentUser?.business?.phone || '0712 345678';
+  const bizLogo = currentUser?.business?.logo;
+  const bizPhone = currentUser?.business?.phone || '07XXXXXXXX';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -116,6 +118,11 @@ export const POSPage: React.FC = () => {
       if (e.code === 'Enter') {
         if (barcodeBuffer.current.length > 1) {
           e.preventDefault();
+          
+          if (isScannerPacing) {
+            setScannerConnected(true);
+          }
+
           const product = products.find(p => p.barcode === barcodeBuffer.current);
           if (product) {
             addToCart(product, 1);
@@ -264,14 +271,35 @@ export const POSPage: React.FC = () => {
     }, 3000);
   };
 
-  // Filter products
+  // Filter products using Weighted Scoring Algorithm
   const filteredProducts = useMemo(() => {
-    return products.filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.barcode.includes(searchQuery);
-      const matchesCategory = !selectedCategory || product.category === selectedCategory;
-      return matchesSearch && matchesCategory;
+    if (!searchQuery) return [];
+    
+    const query = searchQuery.toLowerCase();
+    
+    const scoredProducts = products.map(product => {
+      let score = 0;
+      const name = product.name.toLowerCase();
+      const barcode = product.barcode.toLowerCase();
+      
+      if (barcode === query) score = 100;
+      else if (name === query) score = 90;
+      else if (name.startsWith(query)) score = 80;
+      else if (name.split(' ').some(word => word.startsWith(query))) score = 75;
+      else if (barcode.startsWith(query)) score = 70;
+      else if (name.includes(query)) score = 50;
+      else if (barcode.includes(query)) score = 40;
+      
+      return { product, score };
     });
+    
+    return scoredProducts
+      .filter(p => p.score > 0 && (!selectedCategory || p.product.category === selectedCategory))
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.product.name.localeCompare(b.product.name);
+      })
+      .map(p => p.product);
   }, [products, searchQuery, selectedCategory]);
 
   // Handle product click
@@ -575,6 +603,9 @@ export const POSPage: React.FC = () => {
         <div className="receipt-paper flex flex-col min-h-[60%] flex-1 rounded-t-lg mx-2 lg:mx-0 overflow-hidden pb-4">
           <div className="border-b border-black/10 dark:border-white/10 px-4 py-4 text-center">
             <div className="flex flex-col items-center gap-1">
+              {bizLogo && (
+                 <img src={bizLogo} alt={`${bizName} Logo`} className="max-w-[120px] max-h-[80px] object-contain mb-2" />
+              )}
               <span className="text-xl font-bold uppercase tracking-widest">{bizName}</span>
               <span className="text-xs">Ruiru</span>
               <span className="text-xs">Till {tillNumber ?? '—'} • {currentUser?.name ?? '—'}</span>
@@ -928,6 +959,9 @@ export const POSPage: React.FC = () => {
             }}
           >
             <div className="text-center mb-2">
+              {bizLogo && (
+                 <img src={bizLogo} alt={`${bizName} Logo`} style={{ maxWidth: '100%', maxHeight: '60px', objectFit: 'contain', margin: '0 auto 8px auto', display: 'block' }} />
+              )}
               <div style={{ fontWeight: 'bold', fontSize: '1.1em' }} className="uppercase">{bizName}</div>
               <div>Ruiru</div>
               <div>Tel: {bizPhone}</div>

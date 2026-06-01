@@ -87,15 +87,44 @@ export const InventoryPage: React.FC = () => {
   const [pendingEditProduct, setPendingEditProduct] = useState<Product | null>(null);
   const [adminPin, setAdminPin] = useState('');
   const [adminPinError, setAdminPinError] = useState('');
-  // Filter products
+  // Filter products using Weighted Scoring Algorithm
   const filteredProducts = useMemo(() => {
-    return products.filter(product => {
-      const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.barcode.includes(searchQuery);
-      const matchesCategory = !selectedCategory || product.category === selectedCategory;
-      const matchesLowStock = !showLowStock || product.stock <= product.lowStockThreshold;
-      return matchesSearch && matchesCategory && matchesLowStock;
+    let results = products;
+    
+    // Apply low stock filter first
+    if (showLowStock) {
+      results = results.filter(p => p.stock <= p.lowStockThreshold);
+    }
+    
+    if (!searchQuery) {
+      return results.filter(p => !selectedCategory || p.category === selectedCategory);
+    }
+    
+    const query = searchQuery.toLowerCase();
+    
+    const scoredProducts = results.map(product => {
+      let score = 0;
+      const name = product.name.toLowerCase();
+      const barcode = product.barcode.toLowerCase();
+      
+      if (barcode === query) score = 100;
+      else if (name === query) score = 90;
+      else if (name.startsWith(query)) score = 80;
+      else if (name.split(' ').some(word => word.startsWith(query))) score = 75;
+      else if (barcode.startsWith(query)) score = 70;
+      else if (name.includes(query)) score = 50;
+      else if (barcode.includes(query)) score = 40;
+      
+      return { product, score };
     });
+    
+    return scoredProducts
+      .filter(p => p.score > 0 && (!selectedCategory || p.product.category === selectedCategory))
+      .sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.product.name.localeCompare(b.product.name);
+      })
+      .map(p => p.product);
   }, [products, searchQuery, selectedCategory, showLowStock]);
 
   const lowStockCount = products.filter(p => p.stock > 0 && p.stock <= p.lowStockThreshold).length;

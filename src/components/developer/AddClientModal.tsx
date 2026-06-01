@@ -79,7 +79,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ open, onClose })
                 name: bizName,
                 email: bizEmail,
                 phone: bizPhone,
-                logo: logoUrl || '/main logos/main.png',
+                logo: logoUrl || './main logos/main.png',
                 paymentConfig: {
                     cash: methods.cash,
                     mpesaTill: methods.mpesaTill ? { tillNumber } : null,
@@ -122,7 +122,7 @@ export const AddClientModal: React.FC<AddClientModalProps> = ({ open, onClose })
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto pointer-events-auto">
                 <DialogHeader>
                     <DialogTitle className="text-2xl font-bold">Add New Client Business</DialogTitle>
                 </DialogHeader>

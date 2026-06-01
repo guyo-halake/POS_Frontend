@@ -15,7 +15,7 @@ import { SettingsPage } from '@/components/settings/SettingsPage';
 import { DeveloperDashboard } from '@/components/developer/DeveloperDashboard';
 
 const Index = () => {
-  const { isAuthenticated, setOnlineStatus, isDarkMode, users, fetchProducts, fetchUsers, currentUser, setCurrentUser } = useStore();
+  const { isAuthenticated, setOnlineStatus, isDarkMode, users, fetchProducts, fetchUsers, currentUser, setCurrentUser, activeBusinessId } = useStore();
   const [showSignUp, setShowSignUp] = useState(false);
   const [activeTab, setActiveTab] = useState('pos');
   const [initialRedirectDone, setInitialRedirectDone] = useState(false);
@@ -88,7 +88,7 @@ const Index = () => {
   useEffect(() => {
     fetchProducts();
     fetchUsers();
-  }, []);
+  }, [activeBusinessId]);
 
   // Listen for global auto-login events and set current user in store
   useEffect(() => {
@@ -110,9 +110,7 @@ const Index = () => {
   }, [activeTab, isCashier]);
 
   // If Developer, Show Developer Dashboard directly (No POS)
-  if (isAuthenticated && isDeveloper) {
-    return <DeveloperDashboard />;
-  }
+  // Moved this logic to the bottom to avoid early return hook errors
 
   // Inactivity handling: show screensaver after INACTIVITY_MS when shift active
   useEffect(() => {
@@ -157,6 +155,8 @@ const Index = () => {
     } else {
       content = <LoginScreen />;
     }
+  } else if (isDeveloper) {
+    content = <DeveloperDashboard />;
   } else {
     const renderPage = () => {
       if (isCashier && !allowedTabs.includes(activeTab)) return <POSPage />;
@@ -180,7 +180,7 @@ const Index = () => {
           )}
           <main className="animate-fade-in relative flex-1 min-w-0">
             {renderPage()}
-            <Screensaver open={screensaverOpen && isAuthenticated && Boolean(useStore.getState().isShiftActive)} onClose={() => setScreensaverOpen(false)} logoSrc={'/main%20logos/main.png'} title={currentUser?.business?.name || 'Point of Sale System'} />
+            <Screensaver open={screensaverOpen && isAuthenticated && Boolean(useStore.getState().isShiftActive)} onClose={() => setScreensaverOpen(false)} logoSrc={'./main%20logos/main.png'} title={currentUser?.business?.name || 'Point of Sale System'} />
           </main>
         </div>
       </div>
