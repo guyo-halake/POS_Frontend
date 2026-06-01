@@ -17,6 +17,7 @@ export interface User {
   avatar: string;
   active: boolean;
   business?: BusinessConfig;
+  business_id?: string;
 }
 
 export const initialUsers: User[] = [

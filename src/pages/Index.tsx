@@ -180,7 +180,7 @@ const Index = () => {
           )}
           <main className="animate-fade-in relative flex-1 min-w-0">
             {renderPage()}
-            <Screensaver open={screensaverOpen && isAuthenticated && Boolean(useStore.getState().isShiftActive)} onClose={() => setScreensaverOpen(false)} logoSrc={'/main%20logos/main.png'} title={currentUser?.business?.name || 'Point of Sale System'} />
+            <Screensaver open={screensaverOpen && isAuthenticated && Boolean(useStore.getState().isShiftActive)} onClose={() => setScreensaverOpen(false)} logoSrc={'./main%20logos/main.png'} title={currentUser?.business?.name || 'Point of Sale System'} />
           </main>
         </div>
       </div>

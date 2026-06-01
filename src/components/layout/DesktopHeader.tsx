@@ -13,7 +13,8 @@ import {
   Wifi,
   WifiOff,
   LogOut,
-  ArrowLeft
+  ArrowLeft,
+  ScanBarcode
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,7 +47,7 @@ const navItems = [
 
 
 export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabChange, onBack, allowedTabs }) => {
-  const { currentUser, notifications, isOnline, isDarkMode, toggleDarkMode, logout, isShiftActive, startShift, endShift, tillNumber, setTillNumber } = useStore();
+  const { currentUser, notifications, isOnline, isDarkMode, toggleDarkMode, logout, isShiftActive, startShift, endShift, tillNumber, setTillNumber, scannerConnected } = useStore();
   const [tillDialogOpen, setTillDialogOpen] = React.useState(false);
   const [tillInput, setTillInput] = React.useState<string>(String(tillNumber ?? ''));
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -59,7 +60,7 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabCh
         <div className="flex items-center gap-3 mr-4 min-w-0">
           <div className="h-14 w-auto shrink-0 lg:h-16">
             <img 
-              src={currentUser?.business?.logo || "/rosemarylogo-.png"} 
+              src={currentUser?.business?.logo || "./rosemarylogo-.png"} 
               alt={currentUser?.business?.name || "FreshFity Supermarket"} 
               className="h-full w-auto object-contain"
             />
@@ -100,6 +101,14 @@ export const DesktopHeader: React.FC<DesktopHeaderProps> = ({ activeTab, onTabCh
 
         {/* Right Section */}
         <div className="flex items-center gap-2 lg:gap-3">
+          
+          {/* Scanner Status */}
+          {scannerConnected && (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 text-emerald-600 rounded-full text-[10px] font-bold tracking-widest uppercase border border-emerald-500/20">
+              <ScanBarcode className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Scanner Connected</span>
+            </div>
+          )}
 
           {/* Dark Mode Toggle */}
           <Button

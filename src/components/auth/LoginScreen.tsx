@@ -225,7 +225,7 @@ export const LoginScreen: React.FC = () => {
       <div className="mb-0 relative z-10 flex flex-col items-center animate-slide-up -mb-6">
         <div className="relative w-40 h-40 md:w-56 md:h-56 transition-transform duration-300">
           <img
-            src="/main logos/main.png"
+            src="./main logos/main.png"
             alt="P3L Logo"
             className="w-full h-full object-contain drop-shadow-sm"
           />

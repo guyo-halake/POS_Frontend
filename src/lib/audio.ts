@@ -1,6 +1,6 @@
 export const playBeep = () => {
   try {
-    const audio = new Audio('/beep.wav');
+    const audio = new Audio('./beep.wav');
     audio.play().catch(e => console.error('Failed to play beep:', e));
   } catch (error) {
     console.error('Audio playback error:', error);

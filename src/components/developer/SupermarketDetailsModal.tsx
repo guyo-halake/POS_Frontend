@@ -5,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Store, MapPin, Phone, Mail, Edit2, Save, ExternalLink, CreditCard, Users, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Store, MapPin, Phone, Mail, Edit2, Save, ExternalLink, CreditCard, Users, Trash2, Image as ImageIcon, Database, FileSpreadsheet } from 'lucide-react';
 import { apiFetch } from '@/lib/apiClient';
+import { ProductSeederModal } from './ProductSeederModal';
 
 interface SupermarketDetailsModalProps {
     business: any;
@@ -18,6 +19,7 @@ interface SupermarketDetailsModalProps {
 export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = ({ business, open, onClose, onRefresh }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [showSeederModal, setShowSeederModal] = useState(false);
     
     // General Info
     const [formData, setFormData] = useState({
@@ -144,9 +146,14 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
                         </div>
                     </div>
                     {!isEditing && (
-                        <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                            <Edit2 className="w-4 h-4 mr-2" /> Edit Details
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50" onClick={() => setShowSeederModal(true)}>
+                                <FileSpreadsheet className="w-4 h-4 mr-2" /> Seed Products
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                                <Edit2 className="w-4 h-4 mr-2" /> Edit Details
+                            </Button>
+                        </div>
                     )}
                 </div>
 
@@ -378,6 +385,15 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
                     )}
                 </div>
             </DialogContent>
+
+            {showSeederModal && (
+                <ProductSeederModal 
+                    open={showSeederModal} 
+                    onClose={() => setShowSeederModal(false)}
+                    businessId={business.id}
+                    businessName={business.name}
+                />
+            )}
         </Dialog>
     );
 };

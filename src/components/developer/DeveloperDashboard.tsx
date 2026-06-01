@@ -407,12 +407,10 @@ export const DeveloperDashboard: React.FC = () => {
                 <SupermarketsView />
             )}
 
-            {showAddClient && (
-                <AddClientModal 
-                    open={showAddClient} 
-                    onClose={() => setShowAddClient(false)} 
-                />
-            )}
+            <AddClientModal 
+                open={showAddClient} 
+                onClose={() => setShowAddClient(false)} 
+            />
 
             <Dialog open={!!editingPinUser} onOpenChange={(o) => !o && setEditingPinUser(null)}>
                 <DialogContent>

@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch as Toggle } from '@/components/ui/switch';
+import { toast } from 'sonner';
 
 export const SettingsPage: React.FC = () => {
   const { 
@@ -69,7 +70,8 @@ export const SettingsPage: React.FC = () => {
     deleteUser,
     logout,
     products,
-    sales
+    sales,
+    activeBusinessId
   } = useStore();
 
   const { inactivityTimeoutMinutes, allowScreensaverOnMobile, setInactivityTimeoutMinutes, setAllowScreensaverOnMobile } = useStore();
@@ -94,17 +96,28 @@ export const SettingsPage: React.FC = () => {
     developer: 'bg-accent text-accent-foreground',
   };
 
-  const handleAddUser = () => {
+  const handleAddUser = async () => {
     if (newUser.name && newUser.pin && newUser.role) {
-      addUser(newUser as Omit<User, 'id'>);
-      setShowAddUser(false);
-      setNewUser({
-        name: '',
-        pin: '',
-        role: 'cashier',
-        avatar: '👤',
-        active: true,
-      });
+      const result = await addUser({
+        ...newUser,
+        business_id: activeBusinessId
+      } as Omit<User, 'id'>);
+      
+      if (result && result.success) {
+          toast.success(`${newUser.role === 'admin' ? 'Admin' : 'Cashier'} added successfully!`);
+          setShowAddUser(false);
+          setNewUser({
+            name: '',
+            pin: '',
+            role: 'cashier',
+            avatar: '👤',
+            active: true,
+          });
+      } else {
+          toast.error(result?.error || 'Failed to add user');
+      }
+    } else {
+        toast.error('Please fill all required fields');
     }
   };
 
@@ -114,6 +127,10 @@ export const SettingsPage: React.FC = () => {
       setEditUser(null);
     }
   };
+
+  const tenantUsers = isDeveloper 
+    ? users 
+    : users.filter(u => u.business_id === activeBusinessId || u.business?.id === activeBusinessId);
 
   return (
     <div className="p-4 md:p-6 pb-24 md:pb-6">
@@ -217,7 +234,7 @@ export const SettingsPage: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.map((user) => (
+                  {tenantUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">

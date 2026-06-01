@@ -7,7 +7,7 @@ interface ScreensaverProps {
   title?: string;
 }
 
-export const Screensaver: React.FC<ScreensaverProps> = ({ open, onClose, logoSrc = '/main%20logos/main.png', title = 'Point of Sale System' }) => {
+export const Screensaver: React.FC<ScreensaverProps> = ({ open, onClose, logoSrc = './main%20logos/main.png', title = 'Point of Sale System' }) => {
   const [closing, setClosing] = React.useState(false);
 
   useEffect(() => {
