@@ -1,22 +1,15 @@
 import React, { useState } from 'react';
 import { useStore } from '@/store/useStore';
-import { User, UserRole } from '@/data/users';
+import { User, UserRole, BusinessConfig } from '@/data/users';
 import { cn } from '@/lib/utils';
 import { 
+  User as UserIcon,
+  Briefcase,
+  Save,
   Moon,
   Sun,
-  Users,
-  Plus,
-  Edit2,
-  Trash2,
-  Save,
-  Shield,
-  Code,
-  Wifi,
-  WifiOff,
-  RefreshCw,
-  Database,
-  LogOut
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -25,13 +18,6 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -39,461 +25,388 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Switch as Toggle } from '@/components/ui/switch';
 import { toast } from 'sonner';
 
 export const SettingsPage: React.FC = () => {
   const { 
     currentUser, 
-    users, 
-    isDarkMode, 
-    toggleDarkMode, 
-    isOnline,
-    pendingSyncs,
-    syncPendingSales,
-    addUser,
     updateUser,
-    deleteUser,
-    logout,
-    products,
-    sales,
-    activeBusinessId
+    isDarkMode, 
+    toggleDarkMode,
   } = useStore();
 
-  const { inactivityTimeoutMinutes, allowScreensaverOnMobile, setInactivityTimeoutMinutes, setAllowScreensaverOnMobile } = useStore();
-
-  const [editUser, setEditUser] = useState<User | null>(null);
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [newUser, setNewUser] = useState<Partial<User>>({
-    name: '',
-    pin: '',
-    role: 'cashier',
-    avatar: '👤',
-    active: true,
+  const [showPin, setShowPin] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: currentUser?.name || '',
+    email: currentUser?.email || '',
+    phone: currentUser?.phone || '',
   });
 
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
-  const isDeveloper = currentUser?.role === 'developer';
+  // Business settings state (local before save)
+  const [bizSettings, setBizSettings] = useState<Partial<BusinessConfig>>({
+    uiSettings: currentUser?.business?.uiSettings || {
+      showQuickItems: true,
+      cartStyle: 'receipt',
+      layoutDensity: 'spaced',
+      theme: isDarkMode ? 'dark' : 'light',
+    },
+    receiptSettings: currentUser?.business?.receiptSettings || {
+      supermarketName: currentUser?.business?.name || '',
+      footerMessage: 'Thank you for shopping with us!',
+      showDate: true,
+      showServedBy: true,
+    },
+    paymentMng: currentUser?.business?.paymentMng || {
+      type: 'till',
+      tillNumber: '',
+      paybillNumber: '',
+      paybillAccount: '',
+      phoneNumber: ''
+    },
+    paymentGateway: currentUser?.business?.paymentGateway || {
+      gateway: 'Paystack Backend API',
+      defaultMethod: 'Prompt Payment',
+    }
+  });
 
-  const roleColors: Record<UserRole, string> = {
-    owner: 'bg-primary text-primary-foreground',
-    admin: 'bg-info text-info-foreground',
-    cashier: 'bg-secondary text-secondary-foreground',
-    developer: 'bg-accent text-accent-foreground',
-  };
-
-  const handleAddUser = async () => {
-    if (newUser.name && newUser.pin && newUser.role) {
-      const result = await addUser({
-        ...newUser,
-        business_id: activeBusinessId
-      } as Omit<User, 'id'>);
-      
-      if (result && result.success) {
-          toast.success(`${newUser.role === 'admin' ? 'Admin' : 'Cashier'} added successfully!`);
-          setShowAddUser(false);
-          setNewUser({
-            name: '',
-            pin: '',
-            role: 'cashier',
-            avatar: '👤',
-            active: true,
-          });
-      } else {
-          toast.error(result?.error || 'Failed to add user');
-      }
-    } else {
-        toast.error('Please fill all required fields');
+  const handleProfileSave = () => {
+    if (currentUser) {
+      updateUser(currentUser.id, { ...profileForm });
+      toast.success("Profile updated successfully!");
     }
   };
 
-  const handleUpdateUser = () => {
-    if (editUser) {
-      updateUser(editUser.id, editUser);
-      setEditUser(null);
+  const handleBusinessSave = () => {
+    if (currentUser) {
+      const updatedBusiness = { ...currentUser.business, ...bizSettings } as BusinessConfig;
+      updateUser(currentUser.id, { business: updatedBusiness });
+      toast.success("Business settings saved successfully!");
     }
   };
-
-  const tenantUsers = isDeveloper 
-    ? users 
-    : users.filter(u => u.business_id === activeBusinessId || u.business?.id === activeBusinessId);
 
   return (
-    <div className="p-4 md:p-6 pb-24 md:pb-6">
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+    <div className="p-4 md:p-8 pb-24 md:pb-8 max-w-5xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-black tracking-tight uppercase">Settings</h1>
+        <p className="text-muted-foreground">Manage your personal profile and terminal configurations.</p>
+      </div>
 
-      <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="users" disabled={!isAdmin && !isDeveloper}>Users</TabsTrigger>
-          <TabsTrigger value="sync">Sync</TabsTrigger>
-          {isDeveloper && <TabsTrigger value="developer">Developer</TabsTrigger>}
+      <Tabs defaultValue="personal" className="space-y-8">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] h-14 rounded-none border border-foreground/20 bg-transparent p-1">
+          <TabsTrigger value="personal" className="rounded-none uppercase tracking-widest text-xs font-bold data-[state=active]:bg-foreground data-[state=active]:text-background">
+            <UserIcon className="w-4 h-4 mr-2" />
+            Personal
+          </TabsTrigger>
+          <TabsTrigger value="business" className="rounded-none uppercase tracking-widest text-xs font-bold data-[state=active]:bg-foreground data-[state=active]:text-background">
+            <Briefcase className="w-4 h-4 mr-2" />
+            Business
+          </TabsTrigger>
         </TabsList>
 
-        {/* General Settings */}
-        <TabsContent value="general">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Appearance</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {isDarkMode ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-                    <div>
-                      <Label>Dark Mode</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Switch between light and dark themes
-                      </p>
-                    </div>
-                  </div>
-                  <Switch checked={isDarkMode} onCheckedChange={toggleDarkMode} />
+        {/* PERSONAL ACCOUNTS TAB */}
+        <TabsContent value="personal">
+          <Card className="rounded-none border-foreground/10 p-6 shadow-sm">
+            <div className="flex items-center gap-6 mb-8 pb-6 border-b border-foreground/10">
+              <div className="w-24 h-24 rounded-full bg-foreground flex items-center justify-center text-5xl shadow-inner text-background">
+                {currentUser?.avatar}
+              </div>
+              <div>
+                <h2 className="text-2xl font-black uppercase tracking-widest">{currentUser?.name}</h2>
+                <Badge className="mt-2 uppercase tracking-widest bg-foreground text-background rounded-none px-3 py-1">
+                  {currentUser?.role}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2 max-w-2xl">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Full Name</Label>
+                <Input 
+                  value={profileForm.name} 
+                  onChange={(e) => setProfileForm({...profileForm, name: e.target.value})}
+                  className="rounded-none border-foreground/20 h-12 focus-visible:ring-0 focus-visible:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Email Address</Label>
+                <Input 
+                  value={profileForm.email} 
+                  onChange={(e) => setProfileForm({...profileForm, email: e.target.value})}
+                  className="rounded-none border-foreground/20 h-12 focus-visible:ring-0 focus-visible:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Phone Number</Label>
+                <Input 
+                  value={profileForm.phone} 
+                  onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})}
+                  className="rounded-none border-foreground/20 h-12 focus-visible:ring-0 focus-visible:border-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Security PIN</Label>
+                <div className="relative">
+                  <Input 
+                    value={currentUser?.pin || ''} 
+                    readOnly
+                    type={showPin ? "text" : "password"}
+                    className="rounded-none border-foreground/20 h-12 bg-muted/50 focus-visible:ring-0"
+                  />
+                  <Button variant="ghost" size="icon" className="absolute right-0 top-0 h-12 rounded-none" onClick={() => setShowPin(!showPin)}>
+                    {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
                 </div>
               </div>
-            </Card>
+            </div>
 
-            <Card className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Account</h2>
-              <div className="space-y-4">
-                <div className="flex items-center gap-4 p-4 bg-secondary/50 rounded-lg">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-3xl">
-                    {currentUser?.avatar}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-lg">{currentUser?.name}</p>
-                    <Badge className={roleColors[currentUser?.role || 'cashier']}>
-                      {currentUser?.role}
-                    </Badge>
-                  </div>
-                </div>
-                <Button variant="outline" className="w-full" onClick={logout}>
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </Button>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Screensaver & Inactivity</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Inactivity Timeout (minutes)</Label>
-                    <p className="text-sm text-muted-foreground">How long before the screensaver appears when shift is active.</p>
-                  </div>
-                  <Input type="number" min={1} value={String(inactivityTimeoutMinutes ?? 5)} onChange={(e) => setInactivityTimeoutMinutes(Number(e.target.value || 1))} style={{ width: 90 }} />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Allow on Mobile</Label>
-                    <p className="text-sm text-muted-foreground">When off, screensaver will not appear on small screens.</p>
-                  </div>
-                  <Toggle checked={allowScreensaverOnMobile} onCheckedChange={(v) => setAllowScreensaverOnMobile(Boolean(v))} />
-                </div>
-              </div>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Users Management */}
-        <TabsContent value="users">
-          <Card>
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Manage Users
-              </h2>
-              <Button onClick={() => setShowAddUser(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add User
+            <div className="mt-8 pt-6 border-t border-foreground/10">
+              <Button onClick={handleProfileSave} className="rounded-none h-12 px-8 uppercase tracking-widest font-bold">
+                <Save className="w-4 h-4 mr-2" />
+                Change Profile Details
               </Button>
             </div>
-            <ScrollArea className="h-96">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>PIN</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tenantUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{user.avatar}</span>
-                          <span className="font-medium">{user.name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={roleColors[user.role]}>{user.role}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono">****</TableCell>
-                      <TableCell>
-                        <Badge variant={user.active ? 'default' : 'secondary'}>
-                          {user.active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setEditUser(user)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          {user.role !== 'owner' && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive"
-                              onClick={() => deleteUser(user.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
           </Card>
         </TabsContent>
 
-        {/* Sync Settings */}
-        <TabsContent value="sync">
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Connection Status</h2>
-              <div className={cn(
-                "flex items-center gap-4 p-6 rounded-xl",
-                isOnline ? "bg-success/10" : "bg-warning/10"
-              )}>
-                {isOnline ? (
-                  <Wifi className="w-12 h-12 text-success" />
-                ) : (
-                  <WifiOff className="w-12 h-12 text-warning" />
-                )}
-                <div>
-                  <p className="text-xl font-semibold">
-                    {isOnline ? 'Online' : 'Offline Mode'}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {isOnline 
-                      ? 'All data is being synced automatically'
-                      : 'Data will sync when connection is restored'
-                    }
-                  </p>
+        {/* BUSINESS SETTINGS TAB */}
+        <TabsContent value="business">
+          <div className="grid gap-8 xl:grid-cols-[1fr_300px]">
+            <div className="space-y-8">
+              
+              {/* Receipt Settings */}
+              <Card className="rounded-none border-foreground/10 p-6 shadow-sm">
+                <h2 className="text-lg font-black uppercase tracking-widest mb-6 pb-2 border-b border-foreground/10">Receipt Settings</h2>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Supermarket Name</Label>
+                    <Input 
+                      value={bizSettings.receiptSettings?.supermarketName}
+                      onChange={e => setBizSettings({
+                        ...bizSettings, 
+                        receiptSettings: {...bizSettings.receiptSettings!, supermarketName: e.target.value}
+                      })}
+                      className="rounded-none border-foreground/20 h-12"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Footer Message</Label>
+                    <Input 
+                      value={bizSettings.receiptSettings?.footerMessage}
+                      onChange={e => setBizSettings({
+                        ...bizSettings, 
+                        receiptSettings: {...bizSettings.receiptSettings!, footerMessage: e.target.value}
+                      })}
+                      className="rounded-none border-foreground/20 h-12"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between p-4 border border-foreground/10 bg-muted/30">
+                    <Label className="font-bold tracking-wide">Print Date on Receipt</Label>
+                    <Switch 
+                      checked={bizSettings.receiptSettings?.showDate}
+                      onCheckedChange={v => setBizSettings({
+                        ...bizSettings, 
+                        receiptSettings: {...bizSettings.receiptSettings!, showDate: v}
+                      })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between p-4 border border-foreground/10 bg-muted/30">
+                    <Label className="font-bold tracking-wide">Show 'Served By'</Label>
+                    <Switch 
+                      checked={bizSettings.receiptSettings?.showServedBy}
+                      onCheckedChange={v => setBizSettings({
+                        ...bizSettings, 
+                        receiptSettings: {...bizSettings.receiptSettings!, showServedBy: v}
+                      })}
+                    />
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
 
-            <Card className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Pending Syncs</h2>
-              <div className="flex items-center justify-between p-6 bg-secondary/50 rounded-xl">
-                <div>
-                  <p className="text-3xl font-bold">{pendingSyncs}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Sales waiting to sync
-                  </p>
+              {/* Payment Management */}
+              <Card className="rounded-none border-foreground/10 p-6 shadow-sm">
+                <h2 className="text-lg font-black uppercase tracking-widest mb-6 pb-2 border-b border-foreground/10">Payment Management</h2>
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Mobile Money Type</Label>
+                    <Select 
+                      value={bizSettings.paymentMng?.type || 'till'} 
+                      onValueChange={(v: any) => setBizSettings({
+                        ...bizSettings, 
+                        paymentMng: {...bizSettings.paymentMng!, type: v}
+                      })}
+                    >
+                      <SelectTrigger className="rounded-none border-foreground/20 h-12">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none">
+                        <SelectItem value="till">Till Number</SelectItem>
+                        <SelectItem value="paybill">Paybill</SelectItem>
+                        <SelectItem value="sendMoney">Send Money (P2P)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {bizSettings.paymentMng?.type === 'till' && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Till Number</Label>
+                      <Input 
+                        value={bizSettings.paymentMng?.tillNumber}
+                        onChange={e => setBizSettings({
+                          ...bizSettings, 
+                          paymentMng: {...bizSettings.paymentMng!, tillNumber: e.target.value}
+                        })}
+                        placeholder="e.g. 123456"
+                        className="rounded-none border-foreground/20 h-12"
+                      />
+                    </div>
+                  )}
+
+                  {bizSettings.paymentMng?.type === 'paybill' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Paybill Number</Label>
+                        <Input 
+                          value={bizSettings.paymentMng?.paybillNumber}
+                          onChange={e => setBizSettings({
+                            ...bizSettings, 
+                            paymentMng: {...bizSettings.paymentMng!, paybillNumber: e.target.value}
+                          })}
+                          className="rounded-none border-foreground/20 h-12"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Account Number</Label>
+                        <Input 
+                          value={bizSettings.paymentMng?.paybillAccount}
+                          onChange={e => setBizSettings({
+                            ...bizSettings, 
+                            paymentMng: {...bizSettings.paymentMng!, paybillAccount: e.target.value}
+                          })}
+                          className="rounded-none border-foreground/20 h-12"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {bizSettings.paymentMng?.type === 'sendMoney' && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Phone Number</Label>
+                      <Input 
+                        value={bizSettings.paymentMng?.phoneNumber}
+                        onChange={e => setBizSettings({
+                          ...bizSettings, 
+                          paymentMng: {...bizSettings.paymentMng!, phoneNumber: e.target.value}
+                        })}
+                        placeholder="254..."
+                        className="rounded-none border-foreground/20 h-12"
+                      />
+                    </div>
+                  )}
                 </div>
-                <Button 
-                  onClick={syncPendingSales}
-                  disabled={pendingSyncs === 0 || !isOnline}
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Sync Now
-                </Button>
-              </div>
-            </Card>
-          </div>
-        </TabsContent>
+              </Card>
 
-        {/* Developer Mode */}
-        {isDeveloper && (
-          <TabsContent value="developer">
-            <div className="space-y-6">
-              <Card className="p-6 border-accent">
-                <div className="flex items-center gap-3 mb-4">
-                  <Code className="w-6 h-6 text-accent" />
-                  <h2 className="text-lg font-semibold">Developer Mode</h2>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Full access to backend data, logs, and system configuration.
-                </p>
-                
-                <div className="grid md:grid-cols-2 gap-4">
-                  <Card className="p-4 bg-secondary/30">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Database className="w-4 h-4" />
-                      <span className="font-medium">Database Stats</span>
+              {/* Payment Gateways */}
+              <Card className="rounded-none border-foreground/10 p-6 shadow-sm">
+                <h2 className="text-lg font-black uppercase tracking-widest mb-6 pb-2 border-b border-foreground/10">Payment Gateways</h2>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Active Gateway</Label>
+                    <div className="h-12 border border-foreground/20 bg-muted/50 px-4 flex items-center text-sm font-bold opacity-70">
+                      {bizSettings.paymentGateway?.gateway} (Read-Only)
                     </div>
-                    <div className="space-y-1 text-sm">
-                      <p>Products: {products.length}</p>
-                      <p>Sales: {sales.length}</p>
-                      <p>Users: {users.length}</p>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4 bg-secondary/30">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Shield className="w-4 h-4" />
-                      <span className="font-medium">System Status</span>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <p>Online: {isOnline ? 'Yes' : 'No'}</p>
-                      <p>Pending Syncs: {pendingSyncs}</p>
-                      <p>Dark Mode: {isDarkMode ? 'On' : 'Off'}</p>
-                    </div>
-                  </Card>
-                </div>
-
-                <div className="mt-4">
-                  <h3 className="font-medium mb-2">Raw Data (JSON)</h3>
-                  <ScrollArea className="h-64 bg-background rounded-lg p-4 border">
-                    <pre className="text-xs">
-                      {JSON.stringify({ products: products.slice(0, 3), sales: sales.slice(0, 3) }, null, 2)}
-                    </pre>
-                  </ScrollArea>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Default Method</Label>
+                    <Select 
+                      value={bizSettings.paymentGateway?.defaultMethod || 'Prompt Payment'} 
+                      onValueChange={(v: any) => setBizSettings({
+                        ...bizSettings, 
+                        paymentGateway: {...bizSettings.paymentGateway!, defaultMethod: v}
+                      })}
+                    >
+                      <SelectTrigger className="rounded-none border-foreground/20 h-12">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none">
+                        <SelectItem value="Prompt Payment">Prompt Payment</SelectItem>
+                        <SelectItem value="Till Direct Payment">Till Direct Payment</SelectItem>
+                        <SelectItem value="Cash">Cash</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </Card>
             </div>
-          </TabsContent>
-        )}
-      </Tabs>
 
-      {/* Branding Footer */}
-      <div className="mt-12 mb-6 text-center">
-        <div className="inline-flex flex-col items-center p-4 rounded-xl bg-slate-50/50 hover:bg-slate-100 transition-colors cursor-default border border-slate-100">
-           <div className="text-xs font-bold text-slate-400 tracking-widest uppercase mb-1">Developed By</div>
-           <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-             P3L Developers
-           </div>
-           <p className="text-xs text-slate-400 mt-1">Point of Sale System v1.2</p>
-        </div>
-      </div>
+            {/* Right Sidebar: UI & Widget Settings */}
+            <div className="space-y-6">
+              <Card className="rounded-none border-foreground/10 p-6 shadow-sm sticky top-24">
+                <h2 className="text-lg font-black uppercase tracking-widest mb-6 pb-2 border-b border-foreground/10">UI & Widgets</h2>
+                
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="font-bold tracking-wide">Quick Items Grid</Label>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Show Fast Movers</p>
+                    </div>
+                    <Switch 
+                      checked={bizSettings.uiSettings?.showQuickItems}
+                      onCheckedChange={v => setBizSettings({
+                        ...bizSettings, 
+                        uiSettings: {...bizSettings.uiSettings!, showQuickItems: v}
+                      })}
+                    />
+                  </div>
 
-      {/* Add User Modal */}
-      <Dialog open={showAddUser} onOpenChange={setShowAddUser}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label>Name</Label>
-              <Input
-                value={newUser.name}
-                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                placeholder="Enter full name"
-              />
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Cart Style</Label>
+                    <Select 
+                      value={bizSettings.uiSettings?.cartStyle} 
+                      onValueChange={(v: any) => setBizSettings({
+                        ...bizSettings, 
+                        uiSettings: {...bizSettings.uiSettings!, cartStyle: v}
+                      })}
+                    >
+                      <SelectTrigger className="rounded-none border-foreground/20 h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-none">
+                        <SelectItem value="receipt">Classic Receipt</SelectItem>
+                        <SelectItem value="modern">Modern Table</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-foreground/10">
+                    <div>
+                      <Label className="font-bold tracking-wide">Dark Theme</Label>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Global Color Scheme</p>
+                    </div>
+                    <Switch 
+                      checked={isDarkMode}
+                      onCheckedChange={toggleDarkMode}
+                    />
+                  </div>
+
+                  <div className="pt-6 border-t border-foreground/10">
+                    <Button onClick={handleBusinessSave} className="w-full rounded-none h-14 uppercase tracking-widest font-bold">
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Settings
+                    </Button>
+                  </div>
+                </div>
+              </Card>
             </div>
-            <div>
-              <Label>PIN (4 digits)</Label>
-              <Input
-                value={newUser.pin}
-                onChange={(e) => setNewUser({ ...newUser, pin: e.target.value.slice(0, 4) })}
-                placeholder="Enter 4-digit PIN"
-                maxLength={4}
-                type="password"
-              />
-            </div>
-            <div>
-              <Label>Role</Label>
-              <Select value={newUser.role} onValueChange={(v: UserRole) => setNewUser({ ...newUser, role: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cashier">Cashier</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Avatar Emoji removed */}
+
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddUser(false)}>Cancel</Button>
-            <Button onClick={handleAddUser}>Add User</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit User Modal */}
-      <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-          </DialogHeader>
-          {editUser && (
-            <div className="space-y-4 py-4">
-              <div>
-                <Label>Name</Label>
-                <Input
-                  value={editUser.name}
-                  onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>PIN (4 digits)</Label>
-                <Input
-                  value={editUser.pin}
-                  onChange={(e) => setEditUser({ ...editUser, pin: e.target.value.slice(0, 4) })}
-                  maxLength={4}
-                  type="password"
-                />
-              </div>
-              <div>
-                <Label>Role</Label>
-                <Select value={editUser.role} onValueChange={(v: UserRole) => setEditUser({ ...editUser, role: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cashier">Cashier</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="owner">Owner</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between">
-                <Label>Active</Label>
-                <Switch
-                  checked={editUser.active}
-                  onCheckedChange={(checked) => setEditUser({ ...editUser, active: checked })}
-                />
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
-            <Button onClick={handleUpdateUser}>
-              <Save className="w-4 h-4 mr-2" />
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

@@ -1,12 +1,35 @@
 export type UserRole = 'admin' | 'owner' | 'cashier' | 'developer';
 
 export interface BusinessConfig {
-  id: number;
+  id: number | string;
   name: string;
   email?: string;
   phone?: string;
   logo?: string;
   paymentConfig?: any;
+  uiSettings?: {
+    showQuickItems: boolean;
+    cartStyle: 'modern' | 'receipt';
+    layoutDensity: 'compact' | 'spaced';
+    theme: 'light' | 'dark';
+  };
+  receiptSettings?: {
+    supermarketName: string;
+    footerMessage: string;
+    showDate: boolean;
+    showServedBy: boolean;
+  };
+  paymentMng?: {
+    type: 'till' | 'paybill' | 'sendMoney' | null;
+    tillNumber?: string;
+    paybillNumber?: string;
+    paybillAccount?: string;
+    phoneNumber?: string;
+  };
+  paymentGateway?: {
+    gateway: string;
+    defaultMethod: 'Prompt Payment' | 'Till Direct Payment' | 'Cash';
+  };
 }
 
 export interface User {
@@ -16,6 +39,8 @@ export interface User {
   role: UserRole;
   avatar: string;
   active: boolean;
+  email?: string;
+  phone?: string;
   business?: BusinessConfig;
   business_id?: string;
 }

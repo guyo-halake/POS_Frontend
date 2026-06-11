@@ -14,10 +14,11 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "rebuild-backend": "electron-rebuild -m ../Rosemary-POS---Backend",
     "desktop:dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:8080 && electron . --no-sandbox\"",
-    "desktop:build": "vite build && electron-builder --linux",
-    "desktop:pack": "electron-builder --dir",
-    "desktop:dist": "electron-builder --linux"
+    "desktop:build": "npm run rebuild-backend && npm --prefix ../Rosemary-POS---Backend run build && vite build && electron-builder --linux",
+    "desktop:pack": "npm run rebuild-backend && npm --prefix ../Rosemary-POS---Backend run build && vite build && electron-builder --dir",
+    "desktop:dist": "npm run rebuild-backend && npm --prefix ../Rosemary-POS---Backend run build && vite build && electron-builder --linux"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

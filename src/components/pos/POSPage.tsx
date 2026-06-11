@@ -15,7 +15,9 @@ import {
   Lock,
   Hand,
   XCircle,
-  Banknote
+  Banknote,
+  History,
+  CheckCircle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,7 @@ import {
 
 import { QuickItemsGrid } from './QuickItemsGrid';
 import { QuickCheckoutModal } from './QuickCheckoutModal';
+import { SalesHistoryModal } from './SalesHistoryModal';
 import { playBeep, playErrorBuzzer } from '@/lib/audio';
 
 export const POSPage: React.FC = () => {
@@ -48,6 +51,7 @@ export const POSPage: React.FC = () => {
     switchCartTab,
     removeCartTab,
     currentUser,
+    updateUser,
     currentShift,
     tillNumber,
     setScannerConnected
@@ -61,11 +65,13 @@ export const POSPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [showCameraScan, setShowCameraScan] = useState(false);
+  const { isSalesHistoryOpen, setSalesHistoryOpen } = useStore();
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [isErrorFlash, setIsErrorFlash] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [paymentSuccessData, setPaymentSuccessData] = useState<any>(null);
   const receiptEndRef = useRef<HTMLDivElement>(null);
+  const pollIntervalRef = useRef<any>(null);
 
   const PAYSTACK_PUBLIC_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '';
 
@@ -79,15 +85,15 @@ export const POSPage: React.FC = () => {
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing inside an input field or if checkout is open
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (showCheckoutModal) return;
 
       const now = Date.now();
-      const isScannerPacing = now - lastKeyTime.current < 50; // if keys are coming in faster than 50ms, it's a scanner
+      const isScannerPacing = now - lastKeyTime.current < 100; // Increased to 100ms for slower scanners
+
+      const isInputFocused = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
 
       // Spacebar for Checkout (Now requires Shift + Space to prevent accidental triggers)
-      if (e.code === 'Space' && e.shiftKey) {
+      if (e.code === 'Space' && e.shiftKey && !isInputFocused) {
         if (!isScannerPacing) {
           e.preventDefault();
           if (useStore.getState().cart.length > 0) {
@@ -98,7 +104,7 @@ export const POSPage: React.FC = () => {
       }
 
       // Delete/Backspace for Void Last Item
-      if (e.code === 'Delete' || e.code === 'Backspace') {
+      if ((e.code === 'Delete' || e.code === 'Backspace') && !isInputFocused) {
         if (!isScannerPacing) {
           e.preventDefault();
           const currentCart = useStore.getState().cart;
@@ -110,23 +116,26 @@ export const POSPage: React.FC = () => {
       }
 
       // Barcode Scanner Buffer (rapid characters ending with Enter)
-      if (now - lastKeyTime.current > 100) {
+      if (now - lastKeyTime.current > 200) { // Increased reset timeout to 200ms
         barcodeBuffer.current = '';
       }
       lastKeyTime.current = now;
 
       if (e.code === 'Enter') {
-        if (barcodeBuffer.current.length > 1) {
+        if (barcodeBuffer.current.length > 1 && isScannerPacing) {
           e.preventDefault();
           
-          if (isScannerPacing) {
-            setScannerConnected(true);
-          }
+          setScannerConnected(true);
 
           const product = products.find(p => p.barcode === barcodeBuffer.current);
           if (product) {
             addToCart(product, 1);
             playBeep();
+            // If they scanned while focused on an input, blur it and clear it
+            if (isInputFocused) {
+               (e.target as HTMLElement).blur();
+               setSearchQuery('');
+            }
           } else {
             setNotFoundBarcode(barcodeBuffer.current);
             playErrorBuzzer();
@@ -263,12 +272,19 @@ export const POSPage: React.FC = () => {
   const triggerPrintAndReset = () => {
     setIsPrinting(true);
     setShowReceipt(true);
+    
+    // Give DOM a tick to render the receipt visibly
     setTimeout(() => {
-      setIsPrinting(false);
-      setShowReceipt(false);
-      clearCart();
-      setPaymentSuccessData(null);
-    }, 3000);
+      window.print();
+      
+      // Clear after the print dialog returns
+      setTimeout(() => {
+        setIsPrinting(false);
+        setShowReceipt(false);
+        clearCart();
+        setPaymentSuccessData(null);
+      }, 1000);
+    }, 100);
   };
 
   // Filter products using Weighted Scoring Algorithm
@@ -355,11 +371,22 @@ export const POSPage: React.FC = () => {
     }
     const sale = completeSale('cash');
     if (sale) {
-      setLastSale({ ...sale, cashGiven: given, change: given - total });
+      const enhancedSale = { ...sale, cashGiven: given, change: given - total };
+      setLastSale(enhancedSale);
       setShowCashModal(false);
       setShowPayment(false);
-      triggerPrintAndReset();
+      setPaymentSuccessData(enhancedSale);
+      playBeep();
     }
+  };
+
+  const cancelMpesaPoll = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    setMpesaWaiting(false);
+    toast.error('Payment verification cancelled');
   };
 
   const handleMobileMoneyPay = async () => {
@@ -386,42 +413,55 @@ export const POSPage: React.FC = () => {
       setMpesaWaiting(true);
       setMpesaStatusMessage('Sent STK Push to customer...');
 
-      const pollInterval = setInterval(async () => {
+      pollIntervalRef.current = setInterval(async () => {
         try {
            const statusRes = await fetch(`${API_BASE_URL}/api/paystack/verify/${reference}`);
+           if (!statusRes.ok) {
+             const errText = await statusRes.text();
+             console.error("Verification endpoint error:", errText);
+             setMpesaStatusMessage(`Verification error: Server returned ${statusRes.status}`);
+             return;
+           }
+
            const statusData = await statusRes.json();
            
            if (statusData.status && statusData.data.status === 'success') {
-             clearInterval(pollInterval);
+             if (pollIntervalRef.current) {
+               clearInterval(pollIntervalRef.current);
+               pollIntervalRef.current = null;
+             }
              setMpesaWaiting(false);
              const sale = completeSale('mpesa', reference);
              if (sale) {
-                setLastSale({ ...sale, customerPhone: mpesaPhone });
+                const enhancedSale = { ...sale, customerPhone: mpesaPhone };
+                setLastSale(enhancedSale);
+                setPaymentSuccessData(enhancedSale);
              }
              setMpesaPhone('');
-             setPaymentSuccessData({
-                method: 'Mobile Money',
-                receiptNumber: reference
-             });
              playBeep(); 
-             setTimeout(() => {
-                triggerPrintAndReset();
-             }, 2500);
            } else if (statusData.status && (statusData.data.status === 'failed' || statusData.data.status === 'abandoned')) {
-             clearInterval(pollInterval);
+             if (pollIntervalRef.current) {
+               clearInterval(pollIntervalRef.current);
+               pollIntervalRef.current = null;
+             }
              setMpesaWaiting(false);
              setShowMpesaPrompt(true);
              setMpesaError('Payment Failed or Cancelled.');
            } else {
-             setMpesaStatusMessage('Waiting for customer to enter PIN...');
+             const gatewayResponse = statusData.data?.gateway_response || 'Waiting for customer to enter PIN...';
+             setMpesaStatusMessage(gatewayResponse);
            }
-        } catch (e) {
+        } catch (e: any) {
            console.error("Polling error", e);
+           setMpesaStatusMessage(`Network error: ${e.message || 'Connecting...'}`);
         }
       }, 3000);
 
       setTimeout(() => {
-        if (pollInterval) clearInterval(pollInterval);
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
         setMpesaWaiting(prev => {
           if (prev) {
              setMpesaError('Request timed out. Check status manually or retry.');
@@ -440,38 +480,84 @@ export const POSPage: React.FC = () => {
     }
   };
 
+  const showQuickItems = currentUser?.business?.uiSettings?.showQuickItems ?? true;
+
+  const handleSearchContainerClick = (e: React.MouseEvent) => {
+    if (e.detail === 3) {
+      if (currentUser) {
+        const currentBiz = currentUser.business || {} as any;
+        const currentUI = currentBiz.uiSettings || {};
+        updateUser(currentUser.id, {
+          business: {
+            ...currentBiz,
+            uiSettings: {
+               ...currentUI,
+               showQuickItems: !showQuickItems
+            }
+          }
+        });
+        toast.success(`Quick Items widget ${!showQuickItems ? 'enabled' : 'disabled'}`);
+      }
+    }
+  };
+
   return (
-    <div className={cn("grid h-[calc(100vh-6rem)] gap-6 p-4 overflow-hidden lg:grid-cols-[180px_minmax(0,1.2fr)_minmax(360px,0.8fr)] xl:grid-cols-[200px_minmax(0,1.2fr)_minmax(360px,0.8fr)] transition-colors duration-200", isErrorFlash && "bg-red-900/40")}>
+    <div className={cn(
+      "grid h-[calc(100vh-6rem)] gap-6 p-4 overflow-hidden transition-colors duration-200 bg-background", 
+      isErrorFlash && "bg-red-900/40",
+      showQuickItems 
+        ? "lg:grid-cols-[180px_minmax(0,1fr)_minmax(400px,1.2fr)] xl:grid-cols-[200px_minmax(0,1fr)_minmax(480px,1.2fr)]"
+        : "lg:grid-cols-[minmax(0,1fr)_minmax(400px,1.2fr)] xl:grid-cols-[minmax(0,1fr)_minmax(480px,1.2fr)]"
+    )}>
       {/* Quick Items Rail */}
-      <QuickItemsGrid onQuickAdd={handleQuickAdd} allProducts={products} />
+      {showQuickItems && <QuickItemsGrid onQuickAdd={handleQuickAdd} allProducts={products} />}
       
       {/* Main scan/search zone */}
-      <div className="flex min-h-0 flex-col rounded-3xl glass-panel p-5" ref={searchContainerRef}>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold text-foreground">Scan or search items</h2>
-              <p className="text-xs text-muted-foreground">Quick sale screen</p>
-            </div>
-            <div className="px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-bold border border-primary/20">
-              Sale {activeTabId.split('-')[1] || activeTabId}
+      <div className="flex min-h-0 flex-col rounded-none bg-card p-8" ref={searchContainerRef} onClick={handleSearchContainerClick}>
+          <div className="mb-8 flex flex-col gap-4">
+            {/* Cart Tabs Navigation */}
+            <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide border-b border-foreground/10">
+              {cartTabs.map(tab => (
+                <div 
+                  key={tab.id}
+                  onClick={() => switchCartTab(tab.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 text-[10px] font-bold uppercase tracking-widest cursor-pointer whitespace-nowrap transition-colors border-b-2",
+                    activeTabId === tab.id 
+                      ? "border-foreground text-foreground" 
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {tab.label}
+                  {cartTabs.length > 1 && (
+                    <X 
+                      className="w-3 h-3 hover:text-destructive transition-colors opacity-50 hover:opacity-100 ml-1" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeCartTab(tab.id);
+                      }} 
+                    />
+                  )}
+                </div>
+              ))}
             </div>
           </div>
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative mb-8">
+            <Search className="absolute left-5 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by name or barcode..."
+              placeholder="Scan or enter product name..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-12 rounded-xl border-white/20 bg-card/40 pl-9 pr-9 focus:bg-card focus:border-primary/50 transition-all text-base"
+              className="h-16 rounded-none border-none bg-muted/50 pl-16 pr-14 focus-visible:ring-0 focus-visible:bg-muted transition-colors text-xl font-medium"
             />
             {searchQuery && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 p-0"
+                className="absolute right-2 top-1/2 h-10 w-10 -translate-y-1/2 p-0 rounded-none"
                 onClick={() => setSearchQuery('')}
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </Button>
             )}
           </div>
@@ -576,41 +662,40 @@ export const POSPage: React.FC = () => {
             </ScrollArea>
           )}
           
-          <div className="mt-auto flex justify-center gap-4 pt-4 border-t border-white/10">
-            <Button 
-              onClick={() => addCartTab()} 
-              variant="outline" 
-              className="h-10 px-5 rounded-full border-white/20 bg-card/40 hover:bg-card/80 font-bold gap-2 shadow-sm transition-all active:scale-95"
-            >
-              <Hand className="w-4 h-4" />
-              Hold Sale
-            </Button>
-            <Button 
-              onClick={clearCart} 
-              variant="destructive" 
-              disabled={cart.length === 0}
-              className="h-10 px-5 rounded-full font-bold bg-destructive/90 hover:bg-destructive gap-2 shadow-sm transition-all active:scale-95"
-            >
-              <XCircle className="w-4 h-4" />
-              Clear Sale
-            </Button>
+          <div className="mt-auto flex justify-end gap-2 pt-4">
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => addCartTab()} 
+                variant="ghost" 
+                className="h-8 px-3 rounded-none bg-transparent hover:bg-muted font-bold gap-2 uppercase tracking-widest text-[10px] text-muted-foreground"
+              >
+                <Hand className="w-3 h-3" />
+                Hold
+              </Button>
+              <Button 
+                onClick={clearCart} 
+                variant="ghost" 
+                disabled={cart.length === 0}
+                className="h-8 px-3 rounded-none font-bold gap-2 uppercase tracking-widest text-[10px] text-destructive hover:bg-destructive/10"
+              >
+                <XCircle className="w-3 h-3" />
+                Clear
+              </Button>
+            </div>
           </div>
         </div>
 
       {/* Receipt - Right Side */}
       <div className={cn("flex min-h-0 flex-col lg:sticky lg:top-4 flex-1 gap-4 transition-transform duration-500", isPrinting ? "receipt-printing" : "")}>
         {/* The Receipt Paper */}
-        <div className="receipt-paper flex flex-col min-h-[60%] flex-1 rounded-t-lg mx-2 lg:mx-0 overflow-hidden pb-4">
-          <div className="border-b border-black/10 dark:border-white/10 px-4 py-4 text-center">
+        <div className="receipt-paper flex flex-col min-h-[60%] flex-1 rounded-none bg-card text-foreground mx-2 lg:mx-0 overflow-hidden pb-4 shadow-xl">
+          <div className="border-b border-foreground/10 px-4 py-8 text-center">
             <div className="flex flex-col items-center gap-1">
-              {bizLogo && (
-                 <img src={bizLogo} alt={`${bizName} Logo`} className="max-w-[120px] max-h-[80px] object-contain mb-2" />
+              {currentUser?.business?.logo && (
+                 <img src={currentUser?.business?.logo} alt="Logo" className="max-w-[120px] max-h-[80px] object-contain mb-2 opacity-80" />
               )}
-              <span className="text-xl font-bold uppercase tracking-widest">{bizName}</span>
-              <span className="text-xs">Ruiru</span>
+              <span className="text-xl font-bold uppercase tracking-widest">{currentUser?.business?.name || 'RECEIPT'}</span>
               <span className="text-xs">Till {tillNumber ?? '—'} • {currentUser?.name ?? '—'}</span>
-              <span className="text-xs">Receipt #{Math.floor(Math.random()*1000000)}</span>
-              <div className="my-2 h-px w-3/4 border-t border-dashed border-black/30 dark:border-white/30" />
             </div>
             <div className="mt-1 flex items-center justify-center gap-3 text-[10px]">
               <span>Shift {isShiftActive && currentShift ? 'open' : 'closed'}</span>
@@ -847,9 +932,16 @@ export const POSPage: React.FC = () => {
             </div>
             <h2 className="text-2xl font-black text-white tracking-tight mb-2">AWAITING PIN</h2>
             <p className="text-zinc-400 font-medium">{mpesaStatusMessage}</p>
-            <div className="mt-8 text-zinc-500 text-xs uppercase tracking-widest font-bold">
+            <div className="mt-6 text-zinc-500 text-xs uppercase tracking-widest font-bold">
               Total: KSh {cartTotal.toLocaleString()}
             </div>
+            <Button
+              onClick={cancelMpesaPoll}
+              variant="outline"
+              className="mt-8 border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-white rounded-none uppercase tracking-widest text-[10px] font-bold h-10 px-6"
+            >
+              Cancel & Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1040,6 +1132,61 @@ export const POSPage: React.FC = () => {
       </Dialog>
 
     </div>
+    
+    <Dialog open={!!paymentSuccessData} onOpenChange={(open) => !open && setPaymentSuccessData(null)}>
+      <DialogContent className="sm:max-w-md rounded-none border-foreground/20 text-center p-8">
+        <div className="w-20 h-20 bg-green-500/20 text-green-500 flex items-center justify-center mx-auto mb-6">
+          <CheckCircle className="w-10 h-10" />
+        </div>
+        <DialogTitle className="text-2xl font-black uppercase tracking-widest mb-2">Payment Successful!</DialogTitle>
+        <p className="text-muted-foreground mb-8">Transaction has been approved and recorded.</p>
+        
+        <div className="bg-muted/30 border border-foreground/10 p-6 text-left flex flex-col gap-4 mb-8">
+          {lastSale?.customerPhone && (
+            <div className="flex justify-between font-medium">
+              <span className="text-muted-foreground uppercase text-xs tracking-widest">Customer Phone</span>
+              <span className="font-bold">{lastSale.customerPhone}</span>
+            </div>
+          )}
+          <div className="flex justify-between font-medium">
+            <span className="text-muted-foreground uppercase text-xs tracking-widest">Total Amount</span>
+            <span className="font-bold">KES {lastSale?.total?.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between font-medium">
+            <span className="text-muted-foreground uppercase text-xs tracking-widest">Amount Paid</span>
+            <span className="font-bold text-green-500">KES {(lastSale?.cashGiven || lastSale?.total || 0).toLocaleString()}</span>
+          </div>
+          {lastSale?.paymentMethod === 'mpesa' && lastSale?.mpesaRef && (
+            <div className="flex justify-between font-medium pt-3 border-t border-foreground/10 mt-1">
+              <span className="text-muted-foreground uppercase text-xs tracking-widest">M-PESA Ref Code</span>
+              <span className="font-mono font-black text-primary">{lastSale.mpesaRef}</span>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              setPaymentSuccessData(null);
+              triggerPrintAndReset();
+            }} 
+            className="flex-1 h-12 rounded-none font-bold uppercase tracking-widest"
+          >
+            Print Receipt
+          </Button>
+          <Button 
+            onClick={() => {
+              setPaymentSuccessData(null);
+              clearCart();
+            }} 
+            className="flex-1 h-12 rounded-none font-bold uppercase tracking-widest"
+          >
+            Next Sale
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     </div>
   );
