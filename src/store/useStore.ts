@@ -21,6 +21,7 @@ export interface Sale {
   cashierName: string;
   timestamp: Date;
   synced: boolean;
+  isRefunded?: boolean;
 }
 
 export interface Notification {
@@ -58,6 +59,7 @@ interface AppState {
   currentUser: User | null;
   users: User[];
   isAuthenticated: boolean;
+  isLocked: boolean;
   
   // Shift State
   isShiftActive: boolean;
@@ -74,6 +76,8 @@ interface AppState {
   
   // Sales & Reports
   sales: Sale[];
+  isSalesHistoryOpen: boolean;
+  setSalesHistoryOpen: (open: boolean) => void;
   
   // Notifications
   notifications: Notification[];
@@ -100,6 +104,8 @@ interface AppState {
   setActiveBusiness: (id: string | number) => void;
   login: (pin: string) => Promise<boolean>;
   logout: () => void;
+  lockRegister: () => void;
+  unlockRegister: (pin: string) => Promise<boolean>;
   addUser: (user: Omit<User, 'id'>) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   deleteUser: (id: string) => void;
@@ -119,6 +125,7 @@ interface AppState {
   
   // Sales Actions
   completeSale: (paymentMethod: 'mpesa' | 'cash', mpesaRef?: string) => Sale | null;
+  processRefund: (saleId: string) => void;
   
   // Notification Actions
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
@@ -167,6 +174,7 @@ export const useStore = create<AppState>()(
               }
             },
       isAuthenticated: false,
+      isLocked: false,
       products: [],
       // Fetch products from backend
       fetchProducts: async () => {
@@ -178,8 +186,13 @@ export const useStore = create<AppState>()(
           const data = await res.json();
           set({ products: data });
               } catch (err) {
-                console.error('Failed to fetch products', err);
-              }
+          console.error('Failed to fetch products, using offline cache', err);
+          if (get().products.length === 0) {
+            toast.error('Offline and no local products cached. Cannot start selling.');
+          } else {
+            toast.info('Using offline product cache.');
+          }
+        }      
             },
       cart: [],
       cartTabs: [{ id: 'tab-1', label: 'Customer 1', items: [] }],
@@ -189,6 +202,7 @@ export const useStore = create<AppState>()(
       shifts: [],
       tillNumber: null,
       sales: [],
+      isSalesHistoryOpen: false,
       notifications: [],
       suppliers: [
         { id: '1', name: 'Broadways Bakery', phone: '254700000001', goods: ['Bread', 'Buns', 'Scones'] },
@@ -227,6 +241,7 @@ export const useStore = create<AppState>()(
             set({ 
               currentUser: data.user, 
               isAuthenticated: true,
+              isLocked: false,
               activeBusinessId: bizId
             });
             get().fetchProducts();
@@ -234,13 +249,42 @@ export const useStore = create<AppState>()(
           }
           return false;
         } catch (err) {
-          console.error('Login failed', err);
+          console.error('Login failed, attempting offline fallback', err);
+          const { users } = get();
+          const localUser = users.find(u => u.pin === pin);
+          if (localUser) {
+            const bizId = localUser.business_id || localUser.business?.id || '11111111-1111-1111-1111-111111111111';
+            set({
+              currentUser: localUser,
+              isAuthenticated: true,
+              isLocked: false,
+              activeBusinessId: bizId
+            });
+            // Calling fetchProducts anyway, it will just fail gracefully and use cached products if still offline
+            get().fetchProducts();
+            toast.info('Logged in offline. Some features may be restricted.');
+            return true;
+          }
+          toast.error('Login failed. Cannot verify PIN offline.');
           return false;
         }
       },
 
       logout: () => {
-        set({ currentUser: null, isAuthenticated: false, cart: [], products: [], activeBusinessId: '11111111-1111-1111-1111-111111111111' });
+        set({ currentUser: null, isAuthenticated: false, isLocked: false, cart: [], products: [], activeBusinessId: '11111111-1111-1111-1111-111111111111' });
+      },
+
+      lockRegister: () => {
+        set({ isLocked: true });
+      },
+
+      unlockRegister: async (pin: string) => {
+        // First try to authenticate the user (using existing logic, mostly local fallback is good enough for unlock if same user, but we just re-run login logic)
+        const success = await get().login(pin);
+        if (success) {
+          set({ isLocked: false });
+        }
+        return success;
       },
 
       addUser: async (userData) => {
@@ -418,6 +462,7 @@ export const useStore = create<AppState>()(
       },
 
       // Sales Actions
+      setSalesHistoryOpen: (open: boolean) => set({ isSalesHistoryOpen: open }),
       completeSale: (paymentMethod, mpesaRef) => {
         const { cart, currentUser, isOnline } = get();
         if (cart.length === 0 || !currentUser) return null;
@@ -461,6 +506,50 @@ export const useStore = create<AppState>()(
         });
 
         return sale;
+      },
+
+      processRefund: (saleId: string) => {
+        const saleToRefund = get().sales.find(s => s.id === saleId);
+        if (!saleToRefund || saleToRefund.isRefunded || saleToRefund.total < 0) return;
+
+        // Create a negative sale record
+        const refundSale: Sale = {
+          ...saleToRefund,
+          id: `refund-${Date.now()}`,
+          total: -saleToRefund.total,
+          timestamp: new Date(),
+          isRefunded: false, // The refund record itself isn't refunded
+          synced: get().isOnline,
+        };
+
+        // Mark the original sale as refunded
+        const updatedSales = get().sales.map(s => 
+          s.id === saleId ? { ...s, isRefunded: true } : s
+        );
+
+        // Restock items
+        saleToRefund.items.forEach(item => {
+          get().updateStock(item.product.id, item.quantity); // add quantity back
+        });
+
+        set(state => ({
+          sales: [refundSale, ...updatedSales],
+          pendingSyncs: get().isOnline ? state.pendingSyncs : state.pendingSyncs + 1,
+        }));
+
+        // Fire & Forget to DB
+        apiFetch('/api/sales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(refundSale)
+        }).catch(err => console.error("Failed to save refund to DB", err));
+        
+        // Add refund notification
+        get().addNotification({
+          type: 'payment',
+          title: 'Refund Processed',
+          message: `KES ${saleToRefund.total.toLocaleString()} refunded`,
+        });
       },
 
       // Notification Actions

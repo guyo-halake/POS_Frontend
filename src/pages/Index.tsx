@@ -4,6 +4,7 @@ import { useStore } from '@/store/useStore';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { LoginScreen } from '@/components/auth/LoginScreen';
 import { SignUpScreen } from '@/components/auth/SignUpScreen';
+import { LockScreen } from '@/components/auth/LockScreen';
 import { DesktopHeader } from '@/components/layout/DesktopHeader';
 import { GlobalQuickRail } from '@/components/layout/GlobalQuickRail';
 import { MobileNavBar } from '@/components/layout/MobileNavBar';
@@ -13,6 +14,7 @@ import { InventoryPage } from '@/components/inventory/InventoryPage';
 import { ReportsPage } from '@/components/reports/ReportsPage';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { DeveloperDashboard } from '@/components/developer/DeveloperDashboard';
+import { SalesPage } from '@/components/sales/SalesPage';
 
 const Index = () => {
   const { isAuthenticated, setOnlineStatus, isDarkMode, users, fetchProducts, fetchUsers, currentUser, setCurrentUser, activeBusinessId } = useStore();
@@ -32,8 +34,8 @@ const Index = () => {
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
   
   const allowedTabs = isCashier
-    ? ['pos', 'inventory']
-    : ['dashboard', 'pos', 'inventory', 'reports', 'settings'];
+    ? ['pos', 'inventory', 'sales', 'settings']
+    : ['dashboard', 'pos', 'inventory', 'sales', 'reports', 'settings'];
 
   // Admin redirect to dashboard
   useEffect(() => {
@@ -164,23 +166,23 @@ const Index = () => {
         case 'dashboard': return <AdminDashboard onNavigate={handleTabChange} />;
         case 'pos': return <POSPage />;
         case 'inventory': return <InventoryPage />;
+        case 'sales': return <SalesPage />;
         case 'reports': return isCashier ? <POSPage /> : <ReportsPage />;
-        case 'settings': return isCashier ? <POSPage /> : <SettingsPage />;
+        case 'settings': return <SettingsPage />;
         default: return <POSPage />;
       }
     };
     content = (
       <div className="min-h-screen">
-        {activeTab !== 'dashboard' && (
-          <DesktopHeader activeTab={activeTab} onTabChange={handleTabChange} onBack={handleBack} allowedTabs={allowedTabs} />
-        )}
-        <div className={`flex ${activeTab !== 'dashboard' ? 'min-h-[calc(100vh-9rem)]' : 'min-h-screen'}`}>
+        <DesktopHeader activeTab={activeTab} onTabChange={handleTabChange} onBack={handleBack} allowedTabs={allowedTabs} />
+        <div className={`flex min-h-[calc(100vh-4rem)]`}>
           {activeTab !== 'pos' && activeTab !== 'dashboard' && (
             <GlobalQuickRail activeTab={activeTab} onNavigate={handleTabChange} onBack={handleBack} />
           )}
           <main className="animate-fade-in relative flex-1 min-w-0">
             {renderPage()}
-            <Screensaver open={screensaverOpen && isAuthenticated && Boolean(useStore.getState().isShiftActive)} onClose={() => setScreensaverOpen(false)} logoSrc={'./main%20logos/main.png'} title={currentUser?.business?.name || 'Point of Sale System'} />
+            <Screensaver open={screensaverOpen && isAuthenticated && Boolean(useStore.getState().isShiftActive) && !useStore.getState().isLocked} onClose={() => setScreensaverOpen(false)} logoSrc={'./main%20logos/main.png'} title={currentUser?.business?.name || 'Point of Sale System'} />
+            {useStore.getState().isLocked && <LockScreen />}
           </main>
         </div>
       </div>

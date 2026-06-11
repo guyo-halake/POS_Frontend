@@ -404,3 +404,32 @@ body {
     -moz-appearance: textfield;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .receipt-paper, .receipt-paper * {
+    visibility: visible;
+  }
+  .receipt-paper {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm; /* Standard receipt width */
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    border: none;
+    background: white;
+    color: black;
+  }
+  /* Hide the zig-zag effect for the real print */
+  .receipt-paper::after {
+    display: none !important;
+  }
+  /* Optional: hide some UI controls inside receipt if they exist */
+  .receipt-paper button {
+    display: none !important;
+  }
+}
