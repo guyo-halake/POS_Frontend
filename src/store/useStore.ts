@@ -45,7 +45,8 @@ export interface Supplier {
   id: string;
   name: string;
   phone: string;
-  goods: string[];
+  email?: string;
+  goods: string | string[];
 }
 
 export interface CartTab {
@@ -83,9 +84,11 @@ interface AppState {
   notifications: Notification[];
   
   // Suppliers
+  // Suppliers
   suppliers: Supplier[];
-  addSupplier: (supplier: Omit<Supplier, 'id'>) => void;
-  deleteSupplier: (id: string) => void;
+  fetchSuppliers: () => Promise<void>;
+  addSupplier: (supplier: Omit<Supplier, 'id'>) => Promise<void>;
+  deleteSupplier: (id: string) => Promise<void>;
 
   // App State
   isOnline: boolean;
@@ -101,6 +104,7 @@ interface AppState {
   
   // Auth Actions
   setCurrentUser: (user: User | null) => void;
+  updateCurrentUserLocal: (updates: Partial<User>) => void;
   setActiveBusiness: (id: string | number) => void;
   login: (pin: string) => Promise<boolean>;
   logout: () => void;
@@ -155,6 +159,7 @@ interface AppState {
   getLowStockProducts: () => Product[];
   getTodaySales: () => Sale[];
   getSalesTotal: (sales: Sale[]) => number;
+  fetchSales: () => Promise<void>;
 }
 
 export const useStore = create<AppState>()(
@@ -204,11 +209,7 @@ export const useStore = create<AppState>()(
       sales: [],
       isSalesHistoryOpen: false,
       notifications: [],
-      suppliers: [
-        { id: '1', name: 'Broadways Bakery', phone: '254700000001', goods: ['Bread', 'Buns', 'Scones'] },
-        { id: '2', name: 'KCC Dairy', phone: '254700000002', goods: ['Milk', 'Mala', 'Yoghurt'] },
-        { id: '3', name: 'Pwani Oil', phone: '254700000003', goods: ['Fresh Fri', 'Salit', 'Popcorn Oil'] },
-      ],
+      suppliers: [],
       isOnline: navigator.onLine,
       isDarkMode: false,
       pendingSyncs: 0,
@@ -223,6 +224,9 @@ export const useStore = create<AppState>()(
         isAuthenticated: !!user,
         activeBusinessId: user?.business?.id || '11111111-1111-1111-1111-111111111111' 
       }),
+      updateCurrentUserLocal: (updates) => set(state => ({
+        currentUser: state.currentUser ? { ...state.currentUser, ...updates } : null
+      })),
       setActiveBusiness: (id) => set({ activeBusinessId: id }),
       setTillNumber: (id) => set({ tillNumber: id }),
       setInactivityTimeoutMinutes: (m) => set({ inactivityTimeoutMinutes: m }),
@@ -245,6 +249,7 @@ export const useStore = create<AppState>()(
               activeBusinessId: bizId
             });
             get().fetchProducts();
+            get().fetchSales(); // Sync sales history
             return true;
           }
           return false;
@@ -271,7 +276,18 @@ export const useStore = create<AppState>()(
       },
 
       logout: () => {
-        set({ currentUser: null, isAuthenticated: false, isLocked: false, cart: [], products: [], activeBusinessId: '11111111-1111-1111-1111-111111111111' });
+        set({ 
+          currentUser: null, 
+          isAuthenticated: false, 
+          isLocked: false, 
+          cart: [], 
+          products: [], 
+          sales: [],
+          suppliers: [],
+          cartTabs: [{ id: 'tab-1', label: 'Customer 1', items: [] }],
+          activeTabId: 'tab-1',
+          activeBusinessId: '11111111-1111-1111-1111-111111111111' 
+        });
       },
 
       lockRegister: () => {
@@ -463,6 +479,25 @@ export const useStore = create<AppState>()(
 
       // Sales Actions
       setSalesHistoryOpen: (open: boolean) => set({ isSalesHistoryOpen: open }),
+      
+      fetchSales: async () => {
+         const businessId = get().activeBusinessId || '11111111-1111-1111-1111-111111111111';
+         try {
+           const res = await apiFetch('/api/sales', {
+              headers: { 'x-business-id': String(businessId) }
+           });
+           const data = await res.json();
+           // Combine local sales that are not synced with cloud sales to avoid data loss
+           const localUnsynced = get().sales.filter(s => !s.synced);
+           const syncedCloudIds = new Set(data.map((s: any) => s.id));
+           // Deduplicate
+           const merged = [...localUnsynced.filter(s => !syncedCloudIds.has(s.id)), ...data];
+           set({ sales: merged.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()) });
+         } catch (err) {
+           console.error("Failed to fetch sales from cloud", err);
+         }
+      },
+
       completeSale: (paymentMethod, mpesaRef) => {
         const { cart, currentUser, isOnline } = get();
         if (cart.length === 0 || !currentUser) return null;
@@ -578,16 +613,63 @@ export const useStore = create<AppState>()(
       },
 
       // Supplier Actions
-      addSupplier: (supplierData) => {
-        const newSupplier: Supplier = {
-            ...supplierData,
-            id: `sup-${Date.now()}`
-        };
-        set(state => ({ suppliers: [...state.suppliers, newSupplier] }));
+      fetchSuppliers: async () => {
+        try {
+          const bizId = get().activeBusinessId || '11111111-1111-1111-1111-111111111111';
+          const res = await apiFetch('/api/suppliers', {
+            headers: { 'x-business-id': String(bizId) }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const parsedData = data.map((s: any) => ({
+              ...s,
+              goods: typeof s.goods === 'string' && s.goods.startsWith('[') ? JSON.parse(s.goods) : s.goods
+            }));
+            set({ suppliers: parsedData });
+          }
+        } catch (err) {
+          console.error("Failed to fetch suppliers", err);
+        }
       },
 
-      deleteSupplier: (id) => {
+      addSupplier: async (supplierData) => {
+        try {
+          const bizId = get().activeBusinessId || '11111111-1111-1111-1111-111111111111';
+          const payload = { ...supplierData, goods: JSON.stringify(supplierData.goods) };
+          const res = await apiFetch('/api/suppliers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-business-id': String(bizId) },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const newSupplier: Supplier = {
+              ...supplierData,
+              id: data.id
+            };
+            set(state => ({ suppliers: [...state.suppliers, newSupplier] }));
+            toast.success("Supplier added successfully");
+          } else {
+            toast.error("Failed to add supplier");
+          }
+        } catch (err) {
+          console.error(err);
+          const fallbackSupplier: Supplier = {
+            ...supplierData,
+            id: `sup-${Date.now()}`
+          };
+          set(state => ({ suppliers: [...state.suppliers, fallbackSupplier] }));
+          toast.success("Supplier added offline");
+        }
+      },
+
+      deleteSupplier: async (id) => {
         set(state => ({ suppliers: state.suppliers.filter(s => s.id !== id) }));
+        try {
+          await apiFetch(`/api/suppliers/${id}`, { method: 'DELETE' });
+        } catch(err) {
+          console.error(err);
+        }
       },
 
       // App Actions

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
+import { apiFetch } from '@/lib/apiClient';
 import { API_BASE_URL } from '@/config/api';
 import { cn } from '@/lib/utils';
 import { 
@@ -67,7 +68,7 @@ export const ReportsPage: React.FC = () => {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/sales/stats?range=${range}`);
+      const res = await apiFetch(`/api/sales/stats?range=${range}`);
       const data = await res.json();
       setStats(data);
     } catch (err) {
@@ -80,7 +81,7 @@ export const ReportsPage: React.FC = () => {
   // Fetch Detailed Sales for Lists
   const fetchDetails = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/sales`); // Get all sales
+      const res = await apiFetch(`/api/sales`); // Get all sales
       const allSales = await res.json();
       
       // Filter client-side for simplicity on modals for now

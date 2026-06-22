@@ -10,8 +10,11 @@ import {
   Edit2,
   Trash2,
   Save,
-  PackagePlus
+  PackagePlus,
+  FileUp
 } from 'lucide-react';
+import Papa from 'papaparse';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -158,6 +161,56 @@ export const InventoryPage: React.FC = () => {
     }
   };
 
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        let addedCount = 0;
+        results.data.forEach((row: any) => {
+          // Normalize row keys to handle different case and spacing
+          const normRow: any = {};
+          Object.keys(row).forEach(k => {
+            const cleanKey = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+            normRow[cleanKey] = row[k];
+          });
+
+          const name = normRow.name || normRow.productname || normRow.itemname || normRow.item;
+          const price = parseFloat(normRow.price || normRow.cost || normRow.unitprice) || 0;
+          
+          if (name && price) {
+            addProduct({
+              name: name,
+              category: normRow.category || normRow.department || 'General',
+              price: price,
+              unit: normRow.unit || 'pcs',
+              stock: parseFloat(normRow.stock || normRow.qty || normRow.quantity) || 0,
+              barcode: normRow.barcode || normRow.sku || normRow.upc || '',
+              image: normRow.image || '📦',
+              lowStockThreshold: parseFloat(normRow.lowstockthreshold || normRow.minstock || normRow.alert) || 10,
+            });
+            addedCount++;
+          }
+        });
+        
+        if (addedCount > 0) {
+           toast.success(`Successfully imported ${addedCount} products from CSV`);
+        } else {
+           toast.error('No valid products found. Ensure CSV has Name and Price columns.');
+        }
+      },
+      error: (error: any) => {
+        toast.error(`Error parsing CSV: ${error.message}`);
+      }
+    });
+    
+    // Reset the input so the same file can be uploaded again if needed
+    e.target.value = '';
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto min-h-screen">
       {/* Header */}
@@ -190,6 +243,22 @@ export const InventoryPage: React.FC = () => {
           <Plus className="w-4 h-4 mr-2" />
           Add a Product
         </Button>
+        <div className="relative inline-block">
+          <input 
+            type="file" 
+            accept=".csv" 
+            onChange={handleCSVUpload} 
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+            title="Upload CSV"
+          />
+          <Button 
+            variant="outline"
+            className="h-12 px-8 rounded-none font-medium tracking-widest uppercase border-foreground/20 hover:bg-muted pointer-events-none"
+          >
+            <FileUp className="w-4 h-4 mr-2" />
+            Seed CSV
+          </Button>
+        </div>
       </div>
 
       {/* Search & Filter */}

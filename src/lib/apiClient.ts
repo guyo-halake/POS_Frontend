@@ -23,10 +23,12 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   // Inject user ID for active session tracking
   const storeRaw = localStorage.getItem('freshfity-store');
   let userId = '';
+  let businessId = '';
   if (storeRaw) {
     try {
        const parsed = JSON.parse(storeRaw);
        userId = parsed?.state?.currentUser?.id || '';
+       businessId = parsed?.state?.activeBusinessId || '';
     } catch(e) {}
   }
 
@@ -34,7 +36,8 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     ...options,
     headers: {
       ...options?.headers,
-      ...(userId ? { 'x-user-id': userId } : {})
+      ...(userId ? { 'x-user-id': userId } : {}),
+      ...(businessId ? { 'x-business-id': businessId } : {})
     }
   };
 

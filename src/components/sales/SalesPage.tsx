@@ -172,7 +172,7 @@ export const SalesPage: React.FC = () => {
                 <thead>
                   <tr className="border-b-2 border-foreground/20 uppercase tracking-widest text-[10px] opacity-70">
                     <th className="text-left pb-3 font-bold sticky top-0 bg-card z-10">Sale Number</th>
-                    <th className="text-left pb-3 font-bold hidden md:table-cell sticky top-0 bg-card z-10">Date & Time</th>
+                    <th className="text-left pb-3 font-bold sticky top-0 bg-card z-10">Date & Time</th>
                     <th className="text-center pb-3 font-bold sticky top-0 bg-card z-10">Items</th>
                     <th className="text-right pb-3 font-bold sticky top-0 bg-card z-10">Total</th>
                     <th className="text-right pb-3 font-bold sticky top-0 bg-card z-10">Actions</th>
@@ -200,9 +200,9 @@ export const SalesPage: React.FC = () => {
                           <div className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Sold By: {sale.cashierName}</div>
                           {sale.isRefunded && <span className="inline-block mt-1 text-[9px] bg-destructive text-destructive-foreground px-1 py-0.5 font-bold uppercase tracking-widest">Refunded</span>}
                         </td>
-                        <td className="py-4 hidden md:table-cell">
-                          <div className="font-medium">{new Date(sale.timestamp).toLocaleDateString()}</div>
-                          <div className="text-xs text-muted-foreground">{new Date(sale.timestamp).toLocaleTimeString()}</div>
+                        <td className="py-4">
+                          <div className="font-medium text-xs whitespace-nowrap">{new Date(sale.timestamp).toLocaleDateString()}</div>
+                          <div className="text-[10px] text-muted-foreground whitespace-nowrap">{new Date(sale.timestamp).toLocaleTimeString()}</div>
                         </td>
                         <td className="py-4 text-center font-bold">
                           {sale.items.length}

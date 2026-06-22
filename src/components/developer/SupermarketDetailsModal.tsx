@@ -5,9 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Store, MapPin, Phone, Mail, Edit2, Save, ExternalLink, CreditCard, Users, Trash2, Image as ImageIcon, Database, FileSpreadsheet } from 'lucide-react';
+import { Store, MapPin, Phone, Mail, Edit2, Save, ExternalLink, CreditCard, Users, Trash2, Image as ImageIcon, Database, FileSpreadsheet, Download } from 'lucide-react';
 import { apiFetch } from '@/lib/apiClient';
 import { ProductSeederModal } from './ProductSeederModal';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface SupermarketDetailsModalProps {
     business: any;
@@ -35,11 +37,13 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
         cash: true,
         mpesaTill: false,
         tillNumber: '',
-        mpesaPaybill: false,
         paybillNumber: '',
         accountNumber: '',
         bank: false,
-        bankDetails: ''
+        bankDetails: '',
+        paystack: false,
+        paystackPublicKey: '',
+        paystackSecretKey: ''
     });
 
     useEffect(() => {
@@ -66,7 +70,10 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
                 paybillNumber: parsed.mpesaPaybill?.paybillNumber || '',
                 accountNumber: parsed.mpesaPaybill?.accountNumber || '',
                 bank: !!parsed.bank,
-                bankDetails: parsed.bank?.details || ''
+                bankDetails: parsed.bank?.details || '',
+                paystack: !!parsed.paystack?.enabled,
+                paystackPublicKey: parsed.paystack?.publicKey || '',
+                paystackSecretKey: parsed.paystack?.secretKey || ''
             });
 
             setIsEditing(false);
@@ -81,7 +88,8 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
                 cash: payConfig.cash,
                 mpesaTill: payConfig.mpesaTill ? { tillNumber: payConfig.tillNumber } : null,
                 mpesaPaybill: payConfig.mpesaPaybill ? { paybillNumber: payConfig.paybillNumber, accountNumber: payConfig.accountNumber } : null,
-                bank: payConfig.bank ? { details: payConfig.bankDetails } : null
+                bank: payConfig.bank ? { details: payConfig.bankDetails } : null,
+                paystack: payConfig.paystack ? { enabled: true, publicKey: payConfig.paystackPublicKey, secretKey: payConfig.paystackSecretKey } : null
             };
 
             const res = await apiFetch(`/api/developer/businesses/${business.id}`, {
@@ -108,6 +116,27 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
         }
     };
 
+    const handleDownloadPDF = async () => {
+        const input = document.getElementById('supermarket-summary-content');
+        if (!input) return;
+        
+        toast.info("Generating PDF summary...");
+        try {
+            const canvas = await html2canvas(input, { scale: 2 });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`${business?.name?.replace(/\s+/g, '_') || 'Supermarket'}_Summary.pdf`);
+            toast.success("PDF Downloaded");
+        } catch (e) {
+            console.error("PDF gen failed", e);
+            toast.error("Failed to generate PDF");
+        }
+    };
+
     const formatWhatsAppNumber = (num: string) => {
         if (!num) return '';
         let cleaned = num.replace(/\D/g, '');
@@ -121,8 +150,8 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
 
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white p-0 rounded-2xl gap-0">
-                <div className="bg-slate-50 p-6 border-b border-slate-100 flex items-start justify-between sticky top-0 z-10">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white p-0 rounded-2xl gap-0" id="supermarket-summary-content">
+                <div className="bg-slate-50 p-6 border-b border-slate-100 flex items-start justify-between sticky top-0 z-10" data-html2canvas-ignore>
                     <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center overflow-hidden shrink-0 border border-slate-200 shadow-sm relative group">
                             {formData.logo || business?.logo ? (
@@ -147,6 +176,9 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
                     </div>
                     {!isEditing && (
                         <div className="flex gap-2">
+                            <Button variant="outline" size="sm" className="text-slate-600 hover:bg-slate-100" onClick={handleDownloadPDF}>
+                                <Download className="w-4 h-4 mr-2" /> PDF Summary
+                            </Button>
                             <Button variant="outline" size="sm" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50" onClick={() => setShowSeederModal(true)}>
                                 <FileSpreadsheet className="w-4 h-4 mr-2" /> Seed Products
                             </Button>
@@ -252,6 +284,26 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* Paystack */}
+                                    <div className={`p-4 border rounded-xl space-y-3 transition-colors ${payConfig.paystack ? 'bg-indigo-50/50 border-indigo-200' : 'bg-slate-50/50'} md:col-span-2`}>
+                                        <div className="flex items-center justify-between">
+                                            <Label className="flex items-center gap-2 font-semibold text-indigo-900">Paystack Gateway</Label>
+                                            <Switch checked={payConfig.paystack} onCheckedChange={(c) => setPayConfig(p => ({...p, paystack: c}))} />
+                                        </div>
+                                        {payConfig.paystack && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-indigo-100">
+                                                <div>
+                                                    <Label className="text-xs text-slate-500 mb-1 block">Public Key</Label>
+                                                    <Input value={payConfig.paystackPublicKey} onChange={e => setPayConfig(p => ({...p, paystackPublicKey: e.target.value}))} placeholder="pk_live_..." className="font-mono text-sm" />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs text-slate-500 mb-1 block">Secret Key</Label>
+                                                    <Input type="password" value={payConfig.paystackSecretKey} onChange={e => setPayConfig(p => ({...p, paystackSecretKey: e.target.value}))} placeholder="sk_live_..." className="font-mono text-sm" />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </section>
 
@@ -323,6 +375,13 @@ export const SupermarketDetailsModal: React.FC<SupermarketDetailsModalProps> = (
                                                     {payConfig.mpesaPaybill ? <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold">ON</span> : <span className="text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded font-bold">OFF</span>}
                                                 </div>
                                                 {payConfig.mpesaPaybill && <p className="text-sm font-mono font-bold text-blue-700">{payConfig.paybillNumber} <span className="text-slate-500 font-normal">Acc:</span> {payConfig.accountNumber}</p>}
+                                            </div>
+                                            <div className={`p-3 rounded-lg border ${payConfig.paystack ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <span className="text-sm font-medium">Paystack</span>
+                                                    {payConfig.paystack ? <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-bold">ON</span> : <span className="text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded font-bold">OFF</span>}
+                                                </div>
+                                                {payConfig.paystack && <p className="text-xs font-mono text-slate-500 truncate">{payConfig.paystackPublicKey || 'Keys not set'}</p>}
                                             </div>
                                         </div>
                                     </div>

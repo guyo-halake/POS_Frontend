@@ -16,10 +16,13 @@ interface SalesHistoryModalProps {
 type TimeFilter = 'today' | 'week' | 'month' | 'all';
 
 export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({ open, onOpenChange }) => {
-  const { sales, processRefund, currentUser } = useStore();
+  const { sales, processRefund, currentUser, users } = useStore();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [overrideAction, setOverrideAction] = useState<{type: 'refund'|'delete', sale: Sale} | null>(null);
+  const [adminPin, setAdminPin] = useState('');
 
   const filteredSales = useMemo(() => {
     let filtered = [...sales];
@@ -51,6 +54,14 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({ open, onOp
   }, [sales, timeFilter, searchQuery]);
 
   const handleRefund = (sale: Sale) => {
+    if (currentUser?.role === 'cashier') {
+      setOverrideAction({ type: 'refund', sale });
+      return;
+    }
+    executeRefund(sale);
+  };
+
+  const executeRefund = (sale: Sale) => {
     if (confirm(`Are you sure you want to refund this entire sale of KES ${sale.total}?`)) {
       processRefund(sale.id);
       toast.success('Sale refunded successfully');
@@ -60,10 +71,34 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({ open, onOp
 
   const handleDelete = (e: React.MouseEvent, sale: Sale) => {
     e.stopPropagation();
+    if (currentUser?.role === 'cashier') {
+      setOverrideAction({ type: 'delete', sale });
+      return;
+    }
+    executeDelete(sale);
+  };
+
+  const executeDelete = (sale: Sale) => {
     if (confirm(`ADMIN ACTION: Irreversibly delete sale ${sale.id.slice(-6)}? This will not return stock.`)) {
       // For now, mapping to refund as hard-delete isn't in store
       processRefund(sale.id); 
       toast.success('Sale deleted');
+    }
+  };
+
+  const handleOverrideSubmit = () => {
+    const adminUser = users.find(u => u.pin === adminPin && (u.role === 'admin' || u.role === 'owner' || u.role === 'developer'));
+    if (adminUser) {
+      toast.success(`Override authorized by ${adminUser.name}`);
+      setAdminPin('');
+      if (overrideAction?.type === 'refund') {
+        executeRefund(overrideAction.sale);
+      } else if (overrideAction?.type === 'delete') {
+        executeDelete(overrideAction.sale);
+      }
+      setOverrideAction(null);
+    } else {
+      toast.error('Invalid Admin PIN or unauthorized role');
     }
   };
 
@@ -178,7 +213,7 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({ open, onOp
                 <thead>
                   <tr className="border-b-2 border-foreground/20 uppercase tracking-widest text-[10px] opacity-70">
                     <th className="text-left pb-3 font-bold">Sale Number</th>
-                    <th className="text-left pb-3 font-bold hidden md:table-cell">Date & Time</th>
+                    <th className="text-left pb-3 font-bold">Date & Time</th>
                     <th className="text-center pb-3 font-bold">Items</th>
                     <th className="text-right pb-3 font-bold">Total</th>
                     <th className="text-right pb-3 font-bold">Actions</th>
@@ -206,9 +241,9 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({ open, onOp
                           <div className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Sold By: {sale.cashierName}</div>
                           {sale.isRefunded && <span className="inline-block mt-1 text-[9px] bg-destructive text-destructive-foreground px-1 py-0.5 font-bold uppercase tracking-widest">Refunded</span>}
                         </td>
-                        <td className="py-4 hidden md:table-cell">
-                          <div className="font-medium">{new Date(sale.timestamp).toLocaleDateString()}</div>
-                          <div className="text-xs text-muted-foreground">{new Date(sale.timestamp).toLocaleTimeString()}</div>
+                        <td className="py-4">
+                          <div className="font-medium text-xs whitespace-nowrap">{new Date(sale.timestamp).toLocaleDateString()}</div>
+                          <div className="text-[10px] text-muted-foreground whitespace-nowrap">{new Date(sale.timestamp).toLocaleTimeString()}</div>
                         </td>
                         <td className="py-4 text-center font-bold">
                           {sale.items.length}
@@ -235,6 +270,42 @@ export const SalesHistoryModal: React.FC<SalesHistoryModalProps> = ({ open, onOp
           </div>
         )}
       </DialogContent>
+
+      {/* Admin Override Dialog */}
+      <Dialog open={!!overrideAction} onOpenChange={(open) => {
+        if (!open) {
+          setOverrideAction(null);
+          setAdminPin('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-md rounded-none border-foreground/20">
+          <DialogHeader>
+            <DialogTitle className="uppercase tracking-widest font-black text-lg">Admin Override Required</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              This action requires an Administrator or Manager PIN to authorize.
+            </p>
+            <Input 
+              type="password" 
+              placeholder="Enter Admin PIN" 
+              value={adminPin}
+              onChange={(e) => setAdminPin(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleOverrideSubmit();
+                }
+              }}
+              className="text-center tracking-widest text-2xl h-14 rounded-none border-foreground/20"
+              maxLength={4}
+              autoFocus
+            />
+            <Button onClick={handleOverrideSubmit} size="lg" className="w-full font-bold uppercase tracking-widest rounded-none h-14">
+              Authorize Action
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 };

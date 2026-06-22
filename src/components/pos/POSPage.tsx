@@ -685,17 +685,22 @@ export const POSPage: React.FC = () => {
           </div>
         </div>
 
-      {/* Receipt - Right Side */}
+      {/* Receipt / Cart - Right Side */}
       <div className={cn("flex min-h-0 flex-col lg:sticky lg:top-4 flex-1 gap-4 transition-transform duration-500", isPrinting ? "receipt-printing" : "")}>
-        {/* The Receipt Paper */}
-        <div className="receipt-paper flex flex-col min-h-[60%] flex-1 rounded-none bg-card text-foreground mx-2 lg:mx-0 overflow-hidden pb-4 shadow-xl">
+        {/* The Cart Paper/Container */}
+        <div className={cn(
+          "flex flex-col min-h-[60%] flex-1 text-foreground overflow-hidden pb-4",
+          currentUser?.business?.uiSettings?.cartStyle === 'modern'
+            ? "bg-card border border-foreground/10 rounded-xl shadow-sm"
+            : "receipt-paper rounded-none bg-card mx-2 lg:mx-0 shadow-xl"
+        )}>
           <div className="border-b border-foreground/10 px-4 py-8 text-center">
             <div className="flex flex-col items-center gap-1">
               {currentUser?.business?.logo && (
                  <img src={currentUser?.business?.logo} alt="Logo" className="max-w-[120px] max-h-[80px] object-contain mb-2 opacity-80" />
               )}
               <span className="text-xl font-bold uppercase tracking-widest">{currentUser?.business?.name || 'RECEIPT'}</span>
-              <span className="text-xs">Till {tillNumber ?? '—'} • {currentUser?.name ?? '—'}</span>
+              <span className="text-xs">Till {currentUser?.business?.paymentMng?.tillNumber ?? tillNumber ?? '—'} • {currentUser?.name ?? '—'}</span>
             </div>
             <div className="mt-1 flex items-center justify-center gap-3 text-[10px]">
               <span>Shift {isShiftActive && currentShift ? 'open' : 'closed'}</span>
@@ -714,19 +719,22 @@ export const POSPage: React.FC = () => {
               </div>
             ) : (
               <div className="w-full text-[0.92rem] leading-tight">
-                <table className={cn("w-full mb-2", cart.length > 10 ? "text-xs" : "")}>
+                {(() => {
+                  const isCompact = cart.length > 10 || currentUser?.business?.uiSettings?.layoutDensity === 'compact';
+                  return (
+                <table className={cn("w-full mb-2", isCompact ? "text-xs" : "")}>
                   <thead>
                     <tr className="border-b border-black/20 dark:border-white/20">
-                      <th className={cn("pt-1 font-bold text-left", cart.length > 10 ? "pb-1" : "pb-2")}>Item</th>
-                      <th className={cn("pt-1 font-bold text-center", cart.length > 10 ? "pb-1" : "pb-2")}>Qty</th>
-                      <th className={cn("pt-1 font-bold text-right", cart.length > 10 ? "pb-1" : "pb-2")}>Price</th>
-                      <th className={cn("pt-1 font-bold text-right", cart.length > 10 ? "pb-1" : "pb-2")}>Total</th>
+                      <th className={cn("pt-1 font-bold text-left", isCompact ? "pb-1" : "pb-2")}>Item</th>
+                      <th className={cn("pt-1 font-bold text-center", isCompact ? "pb-1" : "pb-2")}>Qty</th>
+                      <th className={cn("pt-1 font-bold text-right", isCompact ? "pb-1" : "pb-2")}>Price</th>
+                      <th className={cn("pt-1 font-bold text-right", isCompact ? "pb-1" : "pb-2")}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
                   {cart.map((item, idx) => (
                     <tr key={item.product.id} className="receipt-item-enter border-b border-dashed border-black/10 dark:border-white/10">
-                      <td className={cn("text-left", cart.length > 10 ? "py-1" : "py-2")}>
+                      <td className={cn("text-left", isCompact ? "py-1" : "py-2")}>
                         <div className="flex items-center justify-between group">
                           <span className="truncate max-w-[120px]">{item.product.name}</span>
                           <button
@@ -738,7 +746,7 @@ export const POSPage: React.FC = () => {
                           </button>
                         </div>
                       </td>
-                      <td className={cn("text-center", cart.length > 10 ? "py-1" : "py-2")}>
+                      <td className={cn("text-center", isCompact ? "py-1" : "py-2")}>
                         <button
                           onClick={() => {
                             setQuantityModal({ product: item.product, show: true });
@@ -750,13 +758,15 @@ export const POSPage: React.FC = () => {
                           {item.quantity}
                         </button>
                       </td>
-                      <td className={cn("text-right", cart.length > 10 ? "py-1" : "py-2")}>{item.product.price.toLocaleString()}</td>
-                      <td className={cn("text-right font-semibold", cart.length > 10 ? "py-1" : "py-2")}>{(item.product.price * item.quantity).toLocaleString()}</td>
+                      <td className={cn("text-right", isCompact ? "py-1" : "py-2")}>{item.product.price.toLocaleString()}</td>
+                      <td className={cn("text-right font-semibold", isCompact ? "py-1" : "py-2")}>{(item.product.price * item.quantity).toLocaleString()}</td>
                     </tr>
                   ))}
                   <tr><td colSpan={4} style={{ height: '10px' }}></td></tr>
                 </tbody>
               </table>
+                  );
+                })()}
               <div ref={receiptEndRef} />
               <hr className="my-2 border-dashed border-black/20 dark:border-white/20" />
               {/* Subtotal, Tax, Total */}
