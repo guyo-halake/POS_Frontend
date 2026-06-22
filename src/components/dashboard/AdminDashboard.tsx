@@ -45,8 +45,11 @@ import {
     LayoutDashboard,
     ShoppingCart,
     ShoppingBag,
-    FileText
+    FileText,
+    Wallet,
+    Mail
 } from 'lucide-react';
+import { WalletDashboard } from '@/components/finance/WalletDashboard';
 import {
   AreaChart,
   Area,
@@ -68,14 +71,15 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
-    const { currentUser, products, isShiftActive, currentShift, sales, notifications, suppliers, addSupplier } = useStore();
+    const { currentUser, products, isShiftActive, currentShift, sales, notifications, suppliers, addSupplier, fetchSuppliers } = useStore();
     const [timeRange, setTimeRange] = useState('this week');
-    const [activeView, setActiveView] = useState<'dashboard' | 'suppliers' | 'expenses'>('dashboard');
+    const [activeView, setActiveView] = useState<'dashboard' | 'suppliers' | 'expenses' | 'wallet'>('dashboard');
     const [showAddSupplier, setShowAddSupplier] = useState(false);
     
     // Supplier Form State
     const [newSupplierName, setNewSupplierName] = useState('');
     const [newSupplierPhone, setNewSupplierPhone] = useState('');
+    const [newSupplierEmail, setNewSupplierEmail] = useState('');
     const [newSupplierGoods, setNewSupplierGoods] = useState('');
 
     const [restockSupplier, setRestockSupplier] = useState<any | null>(null);
@@ -119,6 +123,9 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
 
     useEffect(() => {
       fetchExpenses();
+      if (activeView === 'suppliers') {
+        fetchSuppliers();
+      }
     }, [activeView]);
 
     const handleLogExpense = async (e: React.FormEvent) => {
@@ -297,19 +304,21 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
         setRestockAmount('');
     };
 
-    const handleAddSupplier = () => {
+    const handleAddSupplier = async () => {
         if (!newSupplierName || !newSupplierPhone) return;
         
         const goodsArray = newSupplierGoods.split(',').map(g => g.trim()).filter(g => g.length > 0);
         
-        addSupplier({
+        await addSupplier({
             name: newSupplierName,
             phone: newSupplierPhone,
+            email: newSupplierEmail,
             goods: goodsArray
         });
         
         setNewSupplierName('');
         setNewSupplierPhone('');
+        setNewSupplierEmail('');
         setNewSupplierGoods('');
         setShowAddSupplier(false);
     };
@@ -366,12 +375,20 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
                   >
                     Expenses
                   </button>
+                  <button 
+                    onClick={() => setActiveView('wallet')}
+                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-widest transition-colors rounded-none ${activeView === 'wallet' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    Wallet
+                  </button>
                 </div>
               </div>
             </div>
 
             <main className="space-y-8 flex-1 animate-fade-in">
-                {activeView === 'dashboard' ? (
+                {activeView === 'wallet' ? (
+                  <WalletDashboard />
+                ) : activeView === 'dashboard' ? (
                 <div className="space-y-8">
                 {/* KPI Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -562,6 +579,10 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
                                 <Input className="h-10 rounded-none border-foreground/25" value={newSupplierPhone} onChange={e => setNewSupplierPhone(e.target.value)} placeholder="2547..." />
                             </div>
                             <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase tracking-widest">Email Address</Label>
+                                <Input type="email" className="h-10 rounded-none border-foreground/25" value={newSupplierEmail} onChange={e => setNewSupplierEmail(e.target.value)} placeholder="supplier@example.com" />
+                            </div>
+                            <div className="space-y-2">
                                 <Label className="text-xs font-bold uppercase tracking-widest">Products (Comma separated)</Label>
                                 <Input className="h-10 rounded-none border-foreground/25" value={newSupplierGoods} onChange={e => setNewSupplierGoods(e.target.value)} placeholder="Chicken, Eggs, Sausages" />
                             </div>
@@ -585,13 +606,21 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
                                             <div className="flex justify-between items-start">
                                                 <div>
                                                     <div className="text-md font-bold uppercase tracking-wide text-foreground">{supplier.name}</div>
-                                                    <div className="flex items-center text-xs text-muted-foreground font-semibold mt-2">
-                                                        <Phone className="w-3.5 h-3.5 mr-2" /> {supplier.phone}
+                                                    <div className="flex items-center text-xs text-muted-foreground font-semibold mt-2 gap-4">
+                                                        <span className="flex items-center"><Phone className="w-3.5 h-3.5 mr-1" /> {supplier.phone}</span>
+                                                        {supplier.email && <span className="flex items-center"><Mail className="w-3.5 h-3.5 mr-1" /> {supplier.email}</span>}
                                                     </div>
                                                 </div>
-                                                <Button size="icon" variant="outline" className="rounded-none h-10 w-10 border-foreground/20 hover:bg-muted" onClick={() => window.open(`tel:${supplier.phone}`)}>
-                                                    <Phone className="w-4 h-4" />
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    {supplier.email && (
+                                                        <Button size="icon" variant="outline" className="rounded-none h-10 w-10 border-foreground/20 hover:bg-muted" onClick={() => window.open(`mailto:${supplier.email}`)}>
+                                                            <Mail className="w-4 h-4" />
+                                                        </Button>
+                                                    )}
+                                                    <Button size="icon" variant="outline" className="rounded-none h-10 w-10 border-foreground/20 hover:bg-muted" onClick={() => window.open(`tel:${supplier.phone}`)}>
+                                                        <Phone className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
                                             </div>
                                             <div className="flex flex-wrap gap-1.5 py-3">
                                                 {supplier.goods.map(good => (

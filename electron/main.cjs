@@ -26,13 +26,12 @@ function startBackend() {
   const userDb = path.join(app.getPath('userData'), 'pos.db');
   const env = {
     ...process.env,
-    ELECTRON_RUN_AS_NODE: '1',
     PORT: String(backendPort),
     SQLITE_PATH: process.env.SQLITE_PATH || userDb,
     POS_APP_FOLDER: process.env.POS_APP_FOLDER || 'p3l-pos',
   };
 
-  backendProcess = spawn(process.execPath, [entry], {
+  backendProcess = spawn('node', [entry], {
     cwd,
     env,
     stdio: 'inherit',

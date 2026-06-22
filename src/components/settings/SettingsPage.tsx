@@ -9,8 +9,26 @@ import {
   Moon,
   Sun,
   Eye,
-  EyeOff
+  EyeOff,
+  Users,
+  Plus,
+  Trash2,
+  Edit
 } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -36,10 +54,72 @@ import { toast } from 'sonner';
 export const SettingsPage: React.FC = () => {
   const { 
     currentUser, 
+    users,
+    sales,
+    addUser,
     updateUser,
+    deleteUser,
+    activeBusinessId,
     isDarkMode, 
     toggleDarkMode,
   } = useStore();
+
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
+  const businessUsers = users.filter(u => String(u.business_id || '') === String(activeBusinessId || '11111111-1111-1111-1111-111111111111'));
+
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userForm, setUserForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    pin: '',
+    role: 'cashier' as UserRole,
+  });
+
+  const handleOpenUserModal = (user?: User) => {
+    if (user) {
+      setEditingUserId(user.id);
+      setUserForm({
+        name: user.name,
+        email: user.email || '',
+        phone: user.phone || '',
+        pin: user.pin,
+        role: user.role,
+      });
+    } else {
+      setEditingUserId(null);
+      setUserForm({ name: '', email: '', phone: '', pin: '', role: 'cashier' });
+    }
+    setShowUserModal(true);
+  };
+
+  const handleSaveUser = () => {
+    if (!userForm.name || !userForm.pin) {
+      toast.error('Name and PIN are required');
+      return;
+    }
+    if (editingUserId) {
+      updateUser(editingUserId, { ...userForm });
+      toast.success('User updated successfully');
+    } else {
+      addUser({ 
+        ...userForm, 
+        avatar: '👤', 
+        active: true, 
+        business_id: String(activeBusinessId || '11111111-1111-1111-1111-111111111111') 
+      });
+      toast.success('User added successfully');
+    }
+    setShowUserModal(false);
+  };
+
+  const handleDeleteUser = (id: string) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      deleteUser(id);
+      toast.success('User deleted successfully');
+    }
+  };
 
   const [showPin, setShowPin] = useState(false);
   const [profileForm, setProfileForm] = useState({
@@ -57,23 +137,34 @@ export const SettingsPage: React.FC = () => {
       theme: isDarkMode ? 'dark' : 'light',
     },
     receiptSettings: currentUser?.business?.receiptSettings || {
-      supermarketName: currentUser?.business?.name || '',
-      footerMessage: 'Thank you for shopping with us!',
+      supermarketName: currentUser?.business?.name || 'ROSEMARY SUPERMARKET',
+      footerMessage: 'Thank you for shopping with us! Karibu Tena.',
       showDate: true,
       showServedBy: true,
     },
     paymentMng: currentUser?.business?.paymentMng || {
       type: 'till',
-      tillNumber: '',
-      paybillNumber: '',
-      paybillAccount: '',
-      phoneNumber: ''
+      tillNumber: '5849302',
+      paybillNumber: '247247',
+      paybillAccount: 'ROSEMARY',
+      phoneNumber: '254700000000'
     },
     paymentGateway: currentUser?.business?.paymentGateway || {
       gateway: 'Paystack Backend API',
       defaultMethod: 'Prompt Payment',
     }
   });
+
+  const { updateCurrentUserLocal } = useStore();
+
+  // Auto-sync UI settings locally for real-time preview
+  React.useEffect(() => {
+    if (currentUser) {
+      updateCurrentUserLocal({ 
+        business: { ...currentUser.business, ...bizSettings } as BusinessConfig 
+      });
+    }
+  }, [bizSettings]);
 
   const handleProfileSave = () => {
     if (currentUser) {
@@ -90,6 +181,44 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const generateSalesSummaryText = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todaySales = sales.filter(s => new Date(s.timestamp) >= today);
+    const mpesaSales = todaySales.filter(s => s.paymentMethod === 'mpesa');
+    const cashSales = todaySales.filter(s => s.paymentMethod === 'cash');
+
+    const totalMpesa = mpesaSales.reduce((sum, s) => sum + s.total, 0);
+    const totalCash = cashSales.reduce((sum, s) => sum + s.total, 0);
+    const totalRevenue = totalMpesa + totalCash;
+
+    const report = `*${bizSettings.receiptSettings?.supermarketName?.toUpperCase() || 'ROSEMARY SUPERMARKET'}*
+*END OF DAY SALES SUMMARY*
+Date: ${new Date().toLocaleDateString()}
+
+*TOTAL REVENUE:* KES ${totalRevenue.toLocaleString()}
+*TOTAL TRANSACTIONS:* ${todaySales.length}
+
+*BREAKDOWN:*
+- M-PESA: KES ${totalMpesa.toLocaleString()} (${mpesaSales.length} txns)
+- CASH: KES ${totalCash.toLocaleString()} (${cashSales.length} txns)
+
+Generated by P3L POS System`;
+
+    return encodeURIComponent(report);
+  };
+
+  const handleShareWhatsApp = () => {
+    const text = generateSalesSummaryText();
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  const handleShareEmail = () => {
+    const text = generateSalesSummaryText();
+    window.location.href = `mailto:?subject=End of Day Sales Summary&body=${text}`;
+  };
+
   return (
     <div className="p-4 md:p-8 pb-24 md:pb-8 max-w-5xl mx-auto">
       <div className="mb-8">
@@ -98,7 +227,7 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       <Tabs defaultValue="personal" className="space-y-8">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] h-14 rounded-none border border-foreground/20 bg-transparent p-1">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3 lg:w-[600px]' : 'grid-cols-2 lg:w-[400px]'} h-14 rounded-none border border-foreground/20 bg-transparent p-1`}>
           <TabsTrigger value="personal" className="rounded-none uppercase tracking-widest text-xs font-bold data-[state=active]:bg-foreground data-[state=active]:text-background">
             <UserIcon className="w-4 h-4 mr-2" />
             Personal
@@ -107,6 +236,12 @@ export const SettingsPage: React.FC = () => {
             <Briefcase className="w-4 h-4 mr-2" />
             Business
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="users" className="rounded-none uppercase tracking-widest text-xs font-bold data-[state=active]:bg-foreground data-[state=active]:text-background">
+              <Users className="w-4 h-4 mr-2" />
+              Staff & Users
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* PERSONAL ACCOUNTS TAB */}
@@ -311,6 +446,20 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </Card>
 
+              {/* End of Day Reports */}
+              <Card className="rounded-none border-foreground/10 p-6 shadow-sm bg-muted/20">
+                <h2 className="text-lg font-black uppercase tracking-widest mb-2">End of Day Reports</h2>
+                <p className="text-xs text-muted-foreground mb-6">Instantly generate and share perfectly calculated math for today's sales.</p>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button onClick={handleShareWhatsApp} className="flex-1 rounded-none font-bold uppercase tracking-widest h-12 bg-[#25D366] hover:bg-[#128C7E] text-white">
+                    Share via WhatsApp
+                  </Button>
+                  <Button onClick={handleShareEmail} variant="outline" className="flex-1 rounded-none font-bold uppercase tracking-widest h-12 border-foreground/20 hover:bg-foreground hover:text-background">
+                    Share via Email
+                  </Button>
+                </div>
+              </Card>
+
               {/* Payment Gateways */}
               <Card className="rounded-none border-foreground/10 p-6 shadow-sm">
                 <h2 className="text-lg font-black uppercase tracking-widest mb-6 pb-2 border-b border-foreground/10">Payment Gateways</h2>
@@ -406,7 +555,102 @@ export const SettingsPage: React.FC = () => {
 
           </div>
         </TabsContent>
+
+        {/* STAFF & USERS TAB */}
+        {isAdmin && (
+          <TabsContent value="users">
+            <Card className="rounded-none border-foreground/10 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-6 pb-2 border-b border-foreground/10">
+                <h2 className="text-lg font-black uppercase tracking-widest">Staff & Users</h2>
+                <Button onClick={() => handleOpenUserModal()} className="rounded-none font-bold uppercase tracking-widest h-10 px-6">
+                  <Plus className="w-4 h-4 mr-2" /> Add Cashier
+                </Button>
+              </div>
+
+              <div className="border border-foreground/10">
+                <Table>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow>
+                      <TableHead className="font-bold uppercase tracking-widest text-xs">Name</TableHead>
+                      <TableHead className="font-bold uppercase tracking-widest text-xs">Email</TableHead>
+                      <TableHead className="font-bold uppercase tracking-widest text-xs">Role</TableHead>
+                      <TableHead className="font-bold uppercase tracking-widest text-xs">PIN</TableHead>
+                      <TableHead className="font-bold uppercase tracking-widest text-xs text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {businessUsers.map((u) => (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.name}</TableCell>
+                        <TableCell>{u.email || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="uppercase tracking-widest text-[10px] rounded-none">
+                            {u.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-mono">****</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenUserModal(u)} className="mr-2">
+                            <Edit className="w-4 h-4 text-blue-600" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(u.id)} disabled={u.id === currentUser.id}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
+
+      {/* User Modal */}
+      <Dialog open={showUserModal} onOpenChange={setShowUserModal}>
+        <DialogContent className="sm:max-w-md rounded-none border-foreground/20">
+          <DialogHeader>
+            <DialogTitle className="uppercase tracking-widest font-black text-lg flex items-center gap-2">
+               <Users className="w-5 h-5" /> {editingUserId ? 'Edit User' : 'Add Cashier'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+             <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest">Full Name</Label>
+                <Input placeholder="John Doe" className="rounded-none border-foreground/20" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} />
+             </div>
+             <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest">Email Address</Label>
+                <Input placeholder="john@example.com" type="email" className="rounded-none border-foreground/20" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} />
+             </div>
+             <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest">Phone Number</Label>
+                <Input placeholder="07XXXXXXXX" className="rounded-none border-foreground/20" value={userForm.phone} onChange={e => setUserForm({...userForm, phone: e.target.value})} />
+             </div>
+             <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest">Login PIN</Label>
+                <Input placeholder="4-digit PIN" maxLength={4} type="password" className="rounded-none border-foreground/20 text-xl tracking-widest font-mono" value={userForm.pin} onChange={e => setUserForm({...userForm, pin: e.target.value})} />
+             </div>
+             <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest">Role</Label>
+                <Select value={userForm.role} onValueChange={(v: UserRole) => setUserForm({...userForm, role: v})}>
+                  <SelectTrigger className="rounded-none border-foreground/20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="cashier">Cashier</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+             </div>
+             <Button onClick={handleSaveUser} className="w-full rounded-none font-bold uppercase tracking-widest h-12 mt-4">
+               Save User
+             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
