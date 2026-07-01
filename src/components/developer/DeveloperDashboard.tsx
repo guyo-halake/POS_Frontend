@@ -11,6 +11,11 @@ import { DeveloperUsersView } from './DeveloperUsersView';
 import { EmailCenterView } from './EmailCenterView';
 import { DeveloperDatabaseView } from './DeveloperDatabaseView';
 import { SupportInboxView } from './SupportInboxView';
+import { DeveloperBillingView } from './DeveloperBillingView';
+import { DeveloperHealthView } from './DeveloperHealthView';
+import { DeveloperWebhooksView } from './DeveloperWebhooksView';
+import { DeveloperKeysView } from './DeveloperKeysView';
+import { CreditCard, Activity, Globe, FileText, Key, AlertTriangle } from 'lucide-react';
 
 export const DeveloperDashboard: React.FC = () => {
     const { logout, setActiveBusiness, fetchProducts } = useStore();
@@ -32,12 +37,18 @@ export const DeveloperDashboard: React.FC = () => {
     };
 
     const navItems = [
-        { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
-        { id: 'supermarkets', icon: Store, label: 'Supermarkets' },
-        { id: 'users', icon: Users, label: 'Access Control' },
-        { id: 'email', icon: Mail, label: 'Email Templates' },
-        { id: 'inbox', icon: MessageSquare, label: 'Support Tickets' },
-        { id: 'database', icon: Database, label: 'Database & Sync' },
+        { id: 'dashboard', icon: LayoutDashboard, label: 'Master Overview' },
+        { id: 'billing', icon: CreditCard, label: 'SaaS Billing & MRR' },
+        { id: 'supermarkets', icon: Store, label: 'Tenant Management' },
+        { id: 'health', icon: Activity, label: 'System Health & Errors' },
+        { id: 'webhooks', icon: Globe, label: 'Payment Webhooks' },
+        { id: 'users', icon: Users, label: 'Cross-Tenant Access' },
+        { id: 'email', icon: Mail, label: 'Mass Broadcasts' },
+        { id: 'inbox', icon: MessageSquare, label: 'Live Ticketing' },
+        { id: 'reports', icon: FileText, label: 'Master Reports Engine' },
+        { id: 'database', icon: Database, label: 'Storage & Sync Quotas' },
+        { id: 'keys', icon: Key, label: 'API Key Vault' },
+        { id: 'danger', icon: AlertTriangle, label: 'Emergency Override' },
     ];
 
     return (
@@ -107,6 +118,20 @@ export const DeveloperDashboard: React.FC = () => {
                                 {activeTab === 'email' && <EmailCenterView />}
                                 {activeTab === 'inbox' && <SupportInboxView />}
                                 {activeTab === 'database' && <DeveloperDatabaseView />}
+                            
+                            {activeTab === 'billing' && <DeveloperBillingView />}
+                            {activeTab === 'health' && <DeveloperHealthView />}
+                            {activeTab === 'webhooks' && <DeveloperWebhooksView />}
+                            {activeTab === 'keys' && <DeveloperKeysView />}
+                            
+                            {['reports', 'danger'].includes(activeTab) && (
+                                <div className="flex flex-col items-center justify-center h-full text-center space-y-2 opacity-40">
+                                    <h2 className="text-xl font-semibold tracking-tight text-slate-900">Module Upcoming</h2>
+                                    <p className="text-sm text-slate-500">
+                                        This component is currently in development.
+                                    </p>
+                                </div>
+                            )}
                             </>
                         )}
                     </div>
