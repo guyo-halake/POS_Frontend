@@ -22,13 +22,15 @@ function startBackend() {
   const entry = backendEntryPath();
   const cwd = backendWorkingDir();
 
-  // Ensure the backend picks up a user-specific DB path when launched from Electron
-  const userDb = path.join(app.getPath('userData'), 'pos.db');
+  const baseDir = process.env.PORTABLE_EXECUTABLE_DIR || (isDev ? app.getPath('userData') : path.dirname(app.getPath('exe')));
+  const dbDir = path.join(baseDir, 'posdb');
+  const userDb = path.join(dbDir, 'pos.db');
+  
   const env = {
     ...process.env,
     PORT: String(backendPort),
     SQLITE_PATH: process.env.SQLITE_PATH || userDb,
-    POS_APP_FOLDER: process.env.POS_APP_FOLDER || 'p3l-pos',
+    POS_APP_FOLDER: process.env.POS_APP_FOLDER || 'posdb',
   };
 
   backendProcess = spawn('node', [entry], {
