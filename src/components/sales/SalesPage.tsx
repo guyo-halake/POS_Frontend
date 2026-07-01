@@ -37,7 +37,8 @@ export const SalesPage: React.FC = () => {
       filtered = filtered.filter(s => 
         s.id.toLowerCase().includes(lowerQ) || 
         s.cashierName.toLowerCase().includes(lowerQ) ||
-        (s.mpesaRef && s.mpesaRef.toLowerCase().includes(lowerQ))
+        (s.mpesaRef && s.mpesaRef.toLowerCase().includes(lowerQ)) ||
+        s.items.some(item => item.product.name.toLowerCase().includes(lowerQ))
       );
     }
 
@@ -145,24 +146,24 @@ export const SalesPage: React.FC = () => {
         ) : (
           <div className="flex flex-col flex-1 min-h-0 p-6">
             <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
-              <div className="relative flex-1 w-full max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <div className="relative flex-1 w-full max-w-2xl">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Search receipt #, cashier..." 
+                  placeholder="Search by receipt #, cashier, M-Pesa ref, or product name..." 
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="rounded-none border-foreground/20 h-10 pl-9"
+                  className="rounded-none border-foreground/20 h-11 pl-11 bg-muted/20 text-sm font-medium tracking-wide focus-visible:ring-1 focus-visible:ring-foreground"
                 />
               </div>
               <Select value={timeFilter} onValueChange={(v: any) => setTimeFilter(v)}>
-                <SelectTrigger className="w-[180px] rounded-none border-foreground/20 h-10 uppercase tracking-widest text-xs font-bold">
+                <SelectTrigger className="w-[220px] rounded-none border-foreground/20 h-11 uppercase tracking-widest text-[11px] font-black bg-muted/20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-none">
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">This Week</SelectItem>
-                  <SelectItem value="month">This Month</SelectItem>
-                  <SelectItem value="all">All Sales</SelectItem>
+                  <SelectItem value="today" className="text-xs font-bold uppercase tracking-widest">Today's Sales</SelectItem>
+                  <SelectItem value="week" className="text-xs font-bold uppercase tracking-widest">This Week's Sales</SelectItem>
+                  <SelectItem value="month" className="text-xs font-bold uppercase tracking-widest">This Month's Sales</SelectItem>
+                  <SelectItem value="all" className="text-xs font-bold uppercase tracking-widest">All Time Sales</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -170,20 +171,20 @@ export const SalesPage: React.FC = () => {
             <ScrollArea className="flex-1 -mx-6 px-6">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b-2 border-foreground/20 uppercase tracking-widest text-[10px] opacity-70">
-                    <th className="text-left pb-3 font-bold sticky top-0 bg-card z-10">Sale Number</th>
-                    <th className="text-left pb-3 font-bold sticky top-0 bg-card z-10">Date & Time</th>
-                    <th className="text-center pb-3 font-bold sticky top-0 bg-card z-10">Items</th>
-                    <th className="text-right pb-3 font-bold sticky top-0 bg-card z-10">Total</th>
-                    <th className="text-right pb-3 font-bold sticky top-0 bg-card z-10">Actions</th>
+                  <tr className="border-b-2 border-foreground/20 uppercase tracking-widest text-[10px] opacity-70 bg-card">
+                    <th className="text-left py-4 font-bold sticky top-0 bg-card z-10 pl-4">Receipt</th>
+                    <th className="text-left py-4 font-bold sticky top-0 bg-card z-10">Cashier</th>
+                    <th className="text-left py-4 font-bold sticky top-0 bg-card z-10">Date & Time</th>
+                    <th className="text-left py-4 font-bold sticky top-0 bg-card z-10 hidden md:table-cell">Items</th>
+                    <th className="text-right py-4 font-bold sticky top-0 bg-card z-10 pr-4">Total Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-foreground/10">
+                <tbody className="divide-y divide-foreground/5">
                   {filteredSales.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-16 text-center">
+                      <td colSpan={5} className="py-24 text-center">
                         <div className="flex flex-col items-center justify-center text-muted-foreground opacity-50">
-                          <Receipt className="w-16 h-16 mb-4" />
+                          <Receipt className="w-12 h-12 mb-4" />
                           <p className="font-bold uppercase tracking-widest text-xs">No Sales Found</p>
                         </div>
                       </td>
@@ -193,31 +194,31 @@ export const SalesPage: React.FC = () => {
                       <tr 
                         key={sale.id} 
                         onClick={() => setSelectedSale(sale)}
-                        className="hover:bg-muted/50 cursor-pointer transition-colors group"
+                        className="hover:bg-muted/40 cursor-pointer transition-colors group"
                       >
-                        <td className="py-4">
-                          <div className="font-bold uppercase tracking-widest">{sale.id.slice(-6)}</div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Sold By: {sale.cashierName}</div>
-                          {sale.isRefunded && <span className="inline-block mt-1 text-[9px] bg-destructive text-destructive-foreground px-1 py-0.5 font-bold uppercase tracking-widest">Refunded</span>}
+                        <td className="py-4 pl-4 align-top">
+                          <div className="font-black uppercase tracking-widest text-sm">#{sale.id.slice(-6)}</div>
+                          <div className="text-[10px] uppercase font-bold tracking-widest mt-1 opacity-70 flex items-center gap-2">
+                             {sale.paymentMethod}
+                             {sale.mpesaRef && <span className="text-emerald-600">({sale.mpesaRef})</span>}
+                          </div>
+                          {sale.isRefunded && <span className="inline-block mt-1.5 text-[9px] bg-destructive text-destructive-foreground px-1.5 py-0.5 font-bold uppercase tracking-widest">Refunded</span>}
                         </td>
-                        <td className="py-4">
+                        <td className="py-4 align-top">
+                          <div className="font-bold text-xs uppercase tracking-wider">{sale.cashierName}</div>
+                        </td>
+                        <td className="py-4 align-top">
                           <div className="font-medium text-xs whitespace-nowrap">{new Date(sale.timestamp).toLocaleDateString()}</div>
-                          <div className="text-[10px] text-muted-foreground whitespace-nowrap">{new Date(sale.timestamp).toLocaleTimeString()}</div>
+                          <div className="text-[10px] text-muted-foreground whitespace-nowrap mt-0.5 font-semibold tracking-widest">{new Date(sale.timestamp).toLocaleTimeString()}</div>
                         </td>
-                        <td className="py-4 text-center font-bold">
-                          {sale.items.length}
+                        <td className="py-4 align-top hidden md:table-cell">
+                          <div className="text-xs max-w-[200px] truncate text-muted-foreground font-medium">
+                            {sale.items.map(i => `${i.quantity}x ${i.product.name}`).join(', ')}
+                          </div>
                         </td>
-                        <td className="py-4 text-right font-black text-lg">
-                          KES {sale.total.toLocaleString()}
-                        </td>
-                        <td className="py-4 text-right">
-                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button size="icon" variant="ghost" className="h-8 w-8 rounded-none text-muted-foreground hover:text-foreground">
-                              <Edit className="w-3 h-3" />
-                            </Button>
-                            <Button onClick={(e) => handleDelete(e, sale)} size="icon" variant="ghost" className="h-8 w-8 rounded-none text-destructive hover:bg-destructive/10">
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
+                        <td className="py-4 pr-4 align-top text-right">
+                          <div className={`font-black text-lg ${sale.total < 0 ? 'text-destructive' : ''}`}>
+                            KES {Math.abs(sale.total).toLocaleString()}
                           </div>
                         </td>
                       </tr>
