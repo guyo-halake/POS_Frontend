@@ -8,6 +8,10 @@ export interface Product {
   barcode: string;
   image: string;
   lowStockThreshold: number;
+  buyingPrice?: number;
+  expiryDate?: string;
+  supplierId?: string;
+  business_id?: string;
 }
 
 export const categories = [
