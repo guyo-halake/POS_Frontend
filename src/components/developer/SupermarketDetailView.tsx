@@ -129,17 +129,26 @@ export const SupermarketDetailView: React.FC<SupermarketDetailViewProps> = ({ bu
                 
                 {!isEditing && (
                     <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" className="rounded-none border-black text-slate-900 hover:bg-black hover:text-white text-[10px] font-bold uppercase tracking-widest" onClick={handleDownloadPDF}>
-                            <Download className="w-3 h-3 mr-2" /> Export PDF
+                        <Button variant="outline" size="sm" className="h-8 text-xs font-medium text-slate-700" onClick={() => {toast.success("Impersonation mode activated."); setTimeout(() => window.location.reload(), 1000);}}>
+                            <KeySquare className="w-3 h-3 mr-2 text-indigo-500" /> Impersonate
                         </Button>
-                        <Button variant="outline" size="sm" className="rounded-none border-black text-slate-900 hover:bg-black hover:text-white text-[10px] font-bold uppercase tracking-widest" onClick={() => setSeederMode('products')}>
+                        <Button variant="outline" size="sm" className="h-8 text-xs font-medium text-slate-700" onClick={() => toast.info("Opening billing & subscription manager...")}>
+                            <FileSpreadsheet className="w-3 h-3 mr-2" /> Billing
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 text-xs font-medium text-slate-700" onClick={() => setSeederMode('products')}>
                             <FileSpreadsheet className="w-3 h-3 mr-2" /> Seed Products
                         </Button>
-                        <Button variant="outline" size="sm" className="rounded-none border-black text-slate-900 hover:bg-black hover:text-white text-[10px] font-bold uppercase tracking-widest" onClick={() => setSeederMode('users')}>
+                        <Button variant="outline" size="sm" className="h-8 text-xs font-medium text-slate-700" onClick={() => setSeederMode('users')}>
                             <KeySquare className="w-3 h-3 mr-2" /> Seed Users
                         </Button>
-                        <Button variant="outline" size="sm" className="rounded-none border-black text-slate-900 hover:bg-black hover:text-white text-[10px] font-bold uppercase tracking-widest" onClick={() => setIsEditing(true)}>
+                        <Button variant="outline" size="sm" className="h-8 text-xs font-medium text-slate-700" onClick={handleDownloadPDF}>
+                            <Download className="w-3 h-3 mr-2" /> Export PDF
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 text-xs font-medium text-slate-700" onClick={() => setIsEditing(true)}>
                             <Edit2 className="w-3 h-3 mr-2" /> Edit Profile
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200" onClick={() => toast.error("Account suspension request initiated.")}>
+                            <Trash2 className="w-3 h-3 mr-2" /> Suspend
                         </Button>
                     </div>
                 )}
@@ -161,9 +170,9 @@ export const SupermarketDetailView: React.FC<SupermarketDetailViewProps> = ({ bu
                         )}
                     </div>
                     <div>
-                        <h2 className="text-4xl font-bold tracking-tighter uppercase text-slate-900">{isEditing ? 'EDITING PROFILE' : fullBusiness?.name}</h2>
-                        <p className="text-xs font-bold tracking-widest text-slate-900/50 uppercase mt-2 flex items-center gap-2">
-                            <MapPin className="w-3.5 h-3.5" /> {fullBusiness?.location || 'LOCATION NOT SET'}
+                        <h2 className="text-3xl font-semibold tracking-tight text-slate-900">{isEditing ? 'Edit Tenant Profile' : fullBusiness?.name}</h2>
+                        <p className="text-sm font-medium text-slate-500 mt-2 flex items-center gap-2">
+                            <MapPin className="w-4 h-4" /> {fullBusiness?.location || 'Location Not Configured'}
                         </p>
                     </div>
                 </div>

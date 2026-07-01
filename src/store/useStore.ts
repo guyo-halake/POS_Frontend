@@ -323,9 +323,14 @@ export const useStore = create<AppState>()(
       },
 
       updateUser: async (id, updates) => {
-        set(state => ({
-          users: state.users.map(u => u.id === id ? { ...u, ...updates } : u),
-        }));
+        set(state => {
+          const updatedUsers = state.users.map(u => u.id === id ? { ...u, ...updates } : u);
+          let newCurrentUser = state.currentUser;
+          if (newCurrentUser && newCurrentUser.id === id) {
+            newCurrentUser = { ...newCurrentUser, ...updates };
+          }
+          return { users: updatedUsers, currentUser: newCurrentUser };
+        });
         try {
            await apiFetch(`/api/users/${id}`, {
             method: 'PUT',

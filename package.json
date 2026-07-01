@@ -17,7 +17,9 @@
     "rebuild-backend": "electron-rebuild -m ../Rosemary-POS---Backend",
     "desktop:dev": "concurrently -k \"vite\" \"wait-on http://127.0.0.1:8080 && electron . --no-sandbox\"",
     "desktop:build": "npm run rebuild-backend && npm --prefix ../Rosemary-POS---Backend run build && vite build && electron-builder --linux",
+    "desktop:build:win": "npm run rebuild-backend && npm --prefix ../Rosemary-POS---Backend run build && vite build && electron-builder --win",
     "desktop:pack": "npm run rebuild-backend && npm --prefix ../Rosemary-POS---Backend run build && vite build && electron-builder --dir",
+    "desktop:pack:win": "npm run rebuild-backend && npm --prefix ../Rosemary-POS---Backend run build && vite build && electron-builder --win --dir",
     "desktop:dist": "npm run rebuild-backend && npm --prefix ../Rosemary-POS---Backend run build && vite build && electron-builder --linux"
   },
   "dependencies": {
@@ -132,7 +134,8 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "portable"
       ]
     }
   }

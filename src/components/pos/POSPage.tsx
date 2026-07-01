@@ -57,9 +57,12 @@ export const POSPage: React.FC = () => {
     setScannerConnected
   } = useStore();
 
-  const bizName = currentUser?.business?.name || 'FRESH FITY SUPERMARKET';
+  const receiptSettings = currentUser?.business?.receiptSettings;
+  const bizName = receiptSettings?.supermarketName || currentUser?.business?.name || 'FRESH FITY SUPERMARKET';
   const bizLogo = currentUser?.business?.logo;
   const bizPhone = currentUser?.business?.phone || '07XXXXXXXX';
+  const showDate = receiptSettings?.showDate !== false;
+  const showServedBy = receiptSettings?.showServedBy !== false;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -244,6 +247,7 @@ export const POSPage: React.FC = () => {
   // Custom Mobile Money States
   const [showMpesaPrompt, setShowMpesaPrompt] = useState(false);
   const [mpesaPhone, setMpesaPhone] = useState('');
+  const [mpesaRefCode, setMpesaRefCode] = useState('');
   const [mpesaLoading, setMpesaLoading] = useState(false);
   const [mpesaError, setMpesaError] = useState('');
   const [mpesaWaiting, setMpesaWaiting] = useState(false);
@@ -389,7 +393,24 @@ export const POSPage: React.FC = () => {
     toast.error('Payment verification cancelled');
   };
 
+  const paymentGatewayMethod = currentUser?.business?.paymentGateway?.defaultMethod || 'Prompt Payment';
+
   const handleMobileMoneyPay = async () => {
+    if (paymentGatewayMethod === 'Till Direct Payment') {
+      const sale = completeSale('mpesa', mpesaRefCode);
+      if (sale) {
+        const enhancedSale = { ...sale, customerPhone: mpesaPhone, mpesaRef: mpesaRefCode };
+        setLastSale(enhancedSale);
+        setPaymentSuccessData(enhancedSale);
+      }
+      setShowMpesaPrompt(false);
+      setShowPayment(false); // Close the main payment modal
+      setMpesaPhone('');
+      setMpesaRefCode('');
+      playBeep();
+      return;
+    }
+
     setMpesaLoading(true);
     setMpesaError('');
     try {
@@ -988,25 +1009,43 @@ export const POSPage: React.FC = () => {
 
           <div className="space-y-6">
             <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase mb-2 tracking-widest">Customer Phone</p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase mb-2 tracking-widest">Customer Phone {paymentGatewayMethod === 'Till Direct Payment' ? '(Optional)' : ''}</p>
               <Input
                 value={mpesaPhone}
                 onChange={e => setMpesaPhone(e.target.value.replace(/[^0-9+]/g, ''))}
                 className="h-14 text-xl font-bold tracking-widest bg-transparent border-b-2 border-l-0 border-r-0 border-t-0 border-border focus-visible:border-foreground focus-visible:ring-0 rounded-none px-0 transition-colors"
-                autoFocus
+                autoFocus={paymentGatewayMethod !== 'Till Direct Payment'}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && mpesaPhone.length >= 9 && !mpesaLoading) {
+                  if (e.key === 'Enter' && (paymentGatewayMethod === 'Till Direct Payment' || mpesaPhone.length >= 9) && !mpesaLoading) {
                     handleMobileMoneyPay();
                   }
                 }}
               />
             </div>
+
+            {paymentGatewayMethod === 'Till Direct Payment' && (
+              <div>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase mb-2 tracking-widest mt-4">M-PESA Reference Code</p>
+                <Input
+                  value={mpesaRefCode}
+                  onChange={e => setMpesaRefCode(e.target.value.toUpperCase())}
+                  className="h-14 text-xl font-bold tracking-widest uppercase bg-transparent border-b-2 border-l-0 border-r-0 border-t-0 border-border focus-visible:border-foreground focus-visible:ring-0 rounded-none px-0 transition-colors"
+                  placeholder="e.g. QWE123RTY"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && mpesaRefCode.length >= 6) {
+                      handleMobileMoneyPay();
+                    }
+                  }}
+                />
+              </div>
+            )}
             
             {mpesaError && <p className="text-red-500 text-xs font-bold animate-in slide-in-from-top-1">{mpesaError}</p>}
             
             <Button 
               onClick={handleMobileMoneyPay} 
-              disabled={mpesaPhone.length < 9 || mpesaLoading}
+              disabled={(paymentGatewayMethod === 'Prompt Payment' && mpesaPhone.length < 9) || (paymentGatewayMethod === 'Till Direct Payment' && mpesaRefCode.length < 5) || mpesaLoading}
               className="w-full h-14 rounded-xl text-sm font-bold tracking-widest bg-foreground hover:bg-foreground/90 text-background transition-all"
             >
               {mpesaLoading ? (
@@ -1014,7 +1053,7 @@ export const POSPage: React.FC = () => {
                   <div className="w-4 h-4 border-2 border-background/30 border-t-background rounded-full animate-spin"></div>
                   CONNECTING
                 </span>
-              ) : 'SEND PROMPT'}
+              ) : (paymentGatewayMethod === 'Till Direct Payment' ? 'RECORD PAYMENT' : 'SEND PROMPT')}
             </Button>
           </div>
         </DialogContent>
@@ -1072,7 +1111,7 @@ export const POSPage: React.FC = () => {
               <div style={{ borderTop: '1px dashed #222', margin: '6px 0' }}></div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div>Served by: <strong>{currentUser?.name ?? '—'}</strong></div>
+              {showServedBy && <div>Served by: <strong>{currentUser?.name ?? '—'}</strong></div>}
               <div>Till: <strong>{tillNumber ?? '—'}</strong></div>
             </div>
             <table style={{ width: '100%', marginBottom: 6 }}>
@@ -1130,7 +1169,7 @@ export const POSPage: React.FC = () => {
                 <span>{lastSale.customerPhone}</span>
               </div>
             )}
-            <div className="text-center" style={{ marginTop: 8 }}>Thank you for shopping with us!</div>
+            <div className="text-center" style={{ marginTop: 8 }}>{receiptSettings?.footerMessage || 'Thank you for shopping with us!'}</div>
             {/* Extra blank space for paper tear */}
             <div style={{ height: '40mm' }}></div>
             <div className="flex justify-center gap-2 pt-4 print:hidden">

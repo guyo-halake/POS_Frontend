@@ -71,8 +71,9 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
-    const { currentUser, products, isShiftActive, currentShift, sales, notifications, suppliers, addSupplier, fetchSuppliers } = useStore();
+    const { currentUser, products, isShiftActive, currentShift, shifts, sales, notifications, suppliers, addSupplier, fetchSuppliers } = useStore();
     const [timeRange, setTimeRange] = useState('this week');
+    const [salesTimeRange, setSalesTimeRange] = useState<'today' | 'this week' | 'this month'>('today');
     const [activeView, setActiveView] = useState<'dashboard' | 'suppliers' | 'expenses' | 'wallet'>('dashboard');
     const [showAddSupplier, setShowAddSupplier] = useState(false);
     
@@ -208,37 +209,48 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
     // 1. Low Stock
     const lowStockItems = products.filter(p => p.stock <= (p.lowStockThreshold || 5));
 
-    // 2. Sales Data (Today vs Yesterday)
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date();
-    endOfToday.setHours(23, 59, 59, 999);
+    // 2. Sales Data Filtering
+    const now = new Date();
+    let salesStart = startOfDay(now);
+    let salesEnd = new Date(now.setHours(23, 59, 59, 999));
+    
+    if (salesTimeRange === 'this week') {
+        salesStart = startOfWeek(new Date(), { weekStartsOn: 0 }); // Sunday start
+        salesEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
+    } else if (salesTimeRange === 'this month') {
+        salesStart = startOfMonth(new Date());
+        salesEnd = endOfMonth(new Date());
+    }
 
-    const todaySales = sales.filter(s => new Date(s.timestamp) >= startOfToday && new Date(s.timestamp) <= endOfToday);
-    const yesterdaySales = sales.filter(s => isYesterday(new Date(s.timestamp)));
+    const filteredSales = sales.filter(s => {
+        const d = new Date(s.timestamp);
+        return d >= salesStart && d <= salesEnd;
+    });
+
+    const revenueTotal = filteredSales.reduce((acc, s) => acc + s.total, 0);
     
-    const revenueToday = todaySales.reduce((acc, s) => acc + s.total, 0);
-    const revenueYesterday = yesterdaySales.reduce((acc, s) => acc + s.total, 0);
-    
-    // Profit Calculation (using real expenses)
-    const startOfTodayForExp = new Date();
-    startOfTodayForExp.setHours(0, 0, 0, 0);
+    // Profit Calculation (using real expenses and real buying prices)
     const todayExpensesTotal = expenses
-      .filter(exp => new Date(exp.timestamp) >= startOfTodayForExp)
+      .filter(exp => {
+        const d = new Date(exp.timestamp);
+        return d >= salesStart && d <= salesEnd;
+      })
       .reduce((acc, exp) => acc + parseFloat(exp.amount), 0);
 
-    const profitToday = Math.max(0, (revenueToday * 0.2) - todayExpensesTotal);
-    const profitYesterday = revenueYesterday * 0.2;
-    
-    let revenueTrend = 0;
-    if (revenueYesterday > 0) {
-        revenueTrend = ((revenueToday - revenueYesterday) / revenueYesterday) * 100;
-    }
-    const trendLabel = revenueYesterday === 0 ? "+100%" : `${revenueTrend > 0 ? '+' : ''}${revenueTrend.toFixed(1)}%`;
+    let realProfit = 0;
+    filteredSales.forEach(s => {
+        const multiplier = s.total < 0 ? -1 : 1;
+        s.items?.forEach(item => {
+            const itemCost = item.product.buyingPrice || (item.product.price * 0.8);
+            realProfit += ((item.product.price - itemCost) * item.quantity) * multiplier;
+        });
+    });
+
+    const profitTotal = realProfit - todayExpensesTotal;
 
     // Payment Methods Breakdown
-    const cashTotal = todaySales.filter(s => s.paymentMethod === 'cash').reduce((acc,s) => acc + s.total, 0);
-    const mpesaTotal = todaySales.filter(s => s.paymentMethod === 'mpesa').reduce((acc,s) => acc + s.total, 0);
+    const cashTotal = filteredSales.filter(s => s.paymentMethod === 'cash').reduce((acc,s) => acc + s.total, 0);
+    const mpesaTotal = filteredSales.filter(s => s.paymentMethod === 'mpesa').reduce((acc,s) => acc + s.total, 0);
     
     // 3. Graph Data Generation based on TimeRange (STRICTLY REAL DATA)
     let graphData: any[] = [];
@@ -247,43 +259,80 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
         graphData = days.map(day => {
             const daySales = sales.filter(s => isSameDay(new Date(s.timestamp), day));
             const rev = daySales.reduce((acc, s) => acc + s.total, 0);
-            return { name: format(day, 'EEE'), revenue: rev, profit: rev * 0.2 };
+            let prof = 0;
+            daySales.forEach(s => {
+                const m = s.total < 0 ? -1 : 1;
+                s.items?.forEach(i => {
+                    const c = i.product.buyingPrice || (i.product.price * 0.8);
+                    prof += ((i.product.price - c) * i.quantity) * m;
+                });
+            });
+            return { name: format(day, 'EEE'), revenue: rev, profit: prof };
         });
     } else if (timeRange === 'this month') {
         const weeks = eachWeekOfInterval({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) });
         graphData = weeks.map((week, idx) => {
             const weekSales = sales.filter(s => isSameWeek(new Date(s.timestamp), week));
             const rev = weekSales.reduce((acc, s) => acc + s.total, 0);
-            return { name: `Week ${idx + 1}`, revenue: rev, profit: rev * 0.2 };
+            let prof = 0;
+            weekSales.forEach(s => {
+                const m = s.total < 0 ? -1 : 1;
+                s.items?.forEach(i => {
+                    const c = i.product.buyingPrice || (i.product.price * 0.8);
+                    prof += ((i.product.price - c) * i.quantity) * m;
+                });
+            });
+            return { name: `Week ${idx + 1}`, revenue: rev, profit: prof };
         });
     } else if (timeRange === 'this year') {
         const months = eachMonthOfInterval({ start: startOfYear(new Date()), end: endOfYear(new Date()) });
         graphData = months.map(month => {
             const monthSales = sales.filter(s => isSameMonth(new Date(s.timestamp), month));
             const rev = monthSales.reduce((acc, s) => acc + s.total, 0);
-            return { name: format(month, 'MMM'), revenue: rev, profit: rev * 0.2 };
+            let prof = 0;
+            monthSales.forEach(s => {
+                const m = s.total < 0 ? -1 : 1;
+                s.items?.forEach(i => {
+                    const c = i.product.buyingPrice || (i.product.price * 0.8);
+                    prof += ((i.product.price - c) * i.quantity) * m;
+                });
+            });
+            return { name: format(month, 'MMM'), revenue: rev, profit: prof };
         });
     }
 
     // 4. Recent Activity
-    const recentSalesLog = todaySales.slice().reverse().slice(0, 5).map(s => ({
-        id: s.id,
-        time: format(new Date(s.timestamp), 'h:mm a'),
-        title: `Sale by ${s.cashierName}`,
-        details: `KES ${s.total.toLocaleString()} via ${s.paymentMethod}`,
-        type: 'info'
-    }));
-
-    const recentActivity = [
-        ...(isShiftActive && currentShift ? [{
-            id: 'shift-start',
-            time: format(new Date(currentShift.startTime), 'h:mm a'),
-            title: 'Shift Started',
-            details: `${currentShift.cashierName} opened the register`,
-            type: 'success'
-        }] : []),
-        ...recentSalesLog
-    ];
+    const recentActivityLog = [
+        ...filteredSales.map(s => ({
+            id: s.id,
+            timestamp: new Date(s.timestamp),
+            time: format(new Date(s.timestamp), 'MMM d, h:mm a'),
+            title: s.total < 0 ? `Refund by ${s.cashierName}` : `Sale by ${s.cashierName}`,
+            details: `KES ${Math.abs(s.total).toLocaleString()} via ${s.paymentMethod}`,
+            type: s.total < 0 ? 'alert' : 'info'
+        })),
+        ...shifts.flatMap(sh => {
+            const arr = [{
+                id: `shift-start-${sh.id}`,
+                timestamp: new Date(sh.startTime),
+                time: format(new Date(sh.startTime), 'MMM d, h:mm a'),
+                title: 'Shift Started',
+                details: `${sh.cashierName} opened register`,
+                type: 'success'
+            }];
+            if (sh.endTime) {
+                arr.push({
+                    id: `shift-end-${sh.id}`,
+                    timestamp: new Date(sh.endTime),
+                    time: format(new Date(sh.endTime), 'MMM d, h:mm a'),
+                    title: 'Shift Ended',
+                    details: `${sh.cashierName} closed register`,
+                    type: 'info'
+                });
+            }
+            return arr;
+        })
+    ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 8);
 
     // Handlers
     const handleRequestStock = (method: 'whatsapp' | 'sms') => {
@@ -329,55 +378,57 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
             {/* Header info in the dashboard content area */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-foreground/10">
               <div>
-                <h1 className="text-3xl font-black tracking-tight uppercase flex items-center gap-3">
+                <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
                   <LayoutDashboard className="w-8 h-8" />
-                  Supervisor Panel
+                  Welcome, {currentUser?.name || 'Admin'}
                 </h1>
-                <p className="text-muted-foreground mt-2">Real-time statistics & store activity</p>
+                <p className="text-muted-foreground mt-2 uppercase tracking-widest text-xs font-bold">
+                  Admin ({currentUser?.business?.name || 'Supermarket'})
+                </p>
               </div>
               
-              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+              <div className="flex flex-wrap items-center gap-6 w-full sm:w-auto justify-end">
                 {/* Reporting Action Buttons */}
-                <div className="flex gap-2">
-                  <Button 
+                <div className="flex gap-4">
+                  <button 
                     onClick={() => { setReportType('whatsapp'); setReportModalOpen(true); }}
-                    className="rounded-none border border-foreground bg-emerald-50 text-emerald-900 hover:bg-emerald-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider py-1 h-8 shadow-none"
+                    className="flex items-center gap-1.5 text-emerald-600 hover:text-emerald-700 transition-colors"
                   >
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-                    WhatsApp
-                  </Button>
-                  <Button 
+                    <MessageSquare className="w-4 h-4" />
+                    <span className="text-[10px] font-black uppercase tracking-wider hidden sm:inline">WhatsApp</span>
+                  </button>
+                  <button 
                     onClick={() => { setReportType('email'); setReportModalOpen(true); }}
-                    className="rounded-none border border-foreground bg-blue-50 text-blue-900 hover:bg-blue-100 flex items-center gap-2 text-[10px] font-black uppercase tracking-wider py-1 h-8 shadow-none"
+                    className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 transition-colors"
                   >
-                    <FileText className="w-3.5 h-3.5 text-blue-600" />
-                    Email
-                  </Button>
+                    <Mail className="w-4 h-4" />
+                    <span className="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Email</span>
+                  </button>
                 </div>
 
                 {/* View switcher */}
-                <div className="flex bg-muted p-1 border border-foreground/15 rounded-none">
+                <div className="flex gap-4">
                   <button 
                     onClick={() => setActiveView('dashboard')}
-                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-widest transition-colors rounded-none ${activeView === 'dashboard' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                    className={`pb-1 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 ${activeView === 'dashboard' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-foreground/30'}`}
                   >
                     Metrics
                   </button>
                   <button 
                     onClick={() => setActiveView('suppliers')}
-                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-widest transition-colors rounded-none ${activeView === 'suppliers' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                    className={`pb-1 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 ${activeView === 'suppliers' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-foreground/30'}`}
                   >
                     Suppliers
                   </button>
                   <button 
                     onClick={() => setActiveView('expenses')}
-                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-widest transition-colors rounded-none ${activeView === 'expenses' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                    className={`pb-1 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 ${activeView === 'expenses' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-foreground/30'}`}
                   >
                     Expenses
                   </button>
                   <button 
                     onClick={() => setActiveView('wallet')}
-                    className={`px-4 py-1.5 text-xs font-bold uppercase tracking-widest transition-colors rounded-none ${activeView === 'wallet' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                    className={`pb-1 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 ${activeView === 'wallet' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-foreground/30'}`}
                   >
                     Wallet
                   </button>
@@ -392,68 +443,68 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
                 <div className="space-y-8">
                 {/* KPI Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Today's Sales Card */}
-                    <Card className="shadow-none rounded-none border border-foreground/15 bg-card">
-                        <CardHeader className="pb-4">
+                    {/* Dynamic Sales Card */}
+                    <Card className="shadow-none rounded-none border border-foreground/15 bg-card flex flex-col">
+                        <CardHeader className="pb-4 flex-none">
                             <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex justify-between items-center">
-                                Today's Sales 
-                                <span className="bg-muted px-2 py-0.5 border border-foreground/10 text-[10px] text-foreground font-black">TODAY</span>
+                                Revenue 
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button className="bg-muted px-2 py-0.5 border border-foreground/10 text-[10px] text-foreground font-black cursor-pointer hover:bg-muted/80">
+                                      {salesTimeRange.toUpperCase()} ▼
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="rounded-none border-foreground/20">
+                                    <DropdownMenuItem onClick={() => setSalesTimeRange('today')} className="text-xs font-bold uppercase tracking-widest">Today</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setSalesTimeRange('this week')} className="text-xs font-bold uppercase tracking-widest">This Week</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setSalesTimeRange('this month')} className="text-xs font-bold uppercase tracking-widest">This Month</DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                             </CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-black tracking-tight mb-6">KES {revenueToday.toLocaleString()}</div>
-                            <div className="flex gap-6">
-                                <div className="flex-1 border-t border-foreground/10 pt-3">
-                                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">M-Pesa</div>
-                                    <div className="font-bold text-sm">KES {mpesaTotal.toLocaleString()}</div>
+                        <CardContent className="flex-1 flex flex-col">
+                            {filteredSales.length === 0 ? (
+                              <div className="flex-1 flex items-center justify-center text-sm font-bold uppercase tracking-widest text-muted-foreground/50 h-full py-6">
+                                No sales {salesTimeRange}
+                              </div>
+                            ) : (
+                              <>
+                                <div className="text-3xl font-black tracking-tight mb-6">KES {revenueTotal.toLocaleString()}</div>
+                                <div className="flex gap-6 mt-auto">
+                                    <div className="flex-1 border-t border-foreground/10 pt-3">
+                                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">M-Pesa</div>
+                                        <div className="font-bold text-sm">KES {mpesaTotal.toLocaleString()}</div>
+                                    </div>
+                                    <div className="flex-1 border-t border-foreground/10 pt-3">
+                                        <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Cash</div>
+                                        <div className="font-bold text-sm">KES {cashTotal.toLocaleString()}</div>
+                                    </div>
                                 </div>
-                                <div className="flex-1 border-t border-foreground/10 pt-3">
-                                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Cash</div>
-                                    <div className="font-bold text-sm">KES {cashTotal.toLocaleString()}</div>
-                                </div>
-                            </div>
+                              </>
+                            )}
                         </CardContent>
                     </Card>
 
                     {/* Low Stock Alert */}
-                    <Card className={`shadow-none rounded-none border bg-card ${lowStockItems.length > 0 ? 'border-destructive/50' : 'border-foreground/15'}`}>
+                    <Card className={`col-span-1 md:col-span-2 shadow-none rounded-none border bg-card ${lowStockItems.length > 0 ? 'border-destructive/50' : 'border-foreground/15'}`}>
                         <CardHeader className="pb-4 flex flex-row items-center justify-between space-y-0">
                             <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Attention Needed</CardTitle>
                             <AlertTriangle className={`w-4 h-4 ${lowStockItems.length > 0 ? 'text-destructive' : 'text-muted-foreground'}`} />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black tracking-tight mb-2">{lowStockItems.length}</div>
-                            <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Items running low</div>
-                            {lowStockItems.length > 0 && (
-                                <Button variant="link" onClick={() => onNavigate('inventory')} className="p-0 h-auto text-xs text-destructive mt-4 font-bold uppercase tracking-wider hover:no-underline flex items-center gap-1">
-                                    Review Items <ArrowRight className="w-3 h-3" />
-                                </Button>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* Current Shift */}
-                    <Card className="shadow-none rounded-none border border-foreground/15 bg-card">
-                         <CardHeader className="pb-4 flex flex-row justify-between items-center">
-                            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Active Shift</CardTitle>
-                            <div className={`h-2.5 w-2.5 rounded-none ${isShiftActive ? 'bg-emerald-500' : 'bg-destructive'}`}></div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex flex-col justify-center h-full pt-1">
-                                {isShiftActive && currentShift ? (
-                                    <>
-                                        <div className="text-2xl font-black uppercase tracking-wider mb-2">{currentShift.cashierName}</div>
-                                        <div className="text-xs text-muted-foreground uppercase tracking-widest">
-                                            Started at {format(new Date(currentShift.startTime), 'h:mm a')}
-                                        </div>
-                                    </>
+                            <div className="space-y-4">
+                                {lowStockItems.length === 0 ? (
+                                    <div className="text-center text-xs uppercase tracking-widest text-muted-foreground font-bold mt-4">All stock levels look good</div>
                                 ) : (
-                                    <>
-                                        <div className="text-2xl font-black tracking-wider text-muted-foreground uppercase mb-2">Shop Closed</div>
-                                        <div className="text-xs text-muted-foreground uppercase tracking-widest">
-                                            No active cashier
-                                        </div>
-                                    </>
+                                    <div className="max-h-[140px] overflow-y-auto pr-2 space-y-2">
+                                        <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-3">{lowStockItems.length} items running low</div>
+                                        {lowStockItems.map(item => (
+                                            <div key={item.id} className="flex justify-between items-center py-2 border-b border-foreground/5 last:border-0">
+                                                <div className="text-xs font-bold uppercase tracking-wider truncate mr-4">{item.name}</div>
+                                                <div className="text-[10px] uppercase font-black px-2 py-0.5 bg-destructive/10 text-destructive flex-shrink-0">{item.stock} left</div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         </CardContent>
@@ -534,10 +585,10 @@ export const AdminDashboard = ({ onNavigate }: AdminDashboardProps) => {
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
-                                {recentActivity.length === 0 && (
+                                {recentActivityLog.length === 0 && (
                                     <div className="text-center text-xs uppercase tracking-widest text-muted-foreground py-8 font-bold">No recent activity</div>
                                 )}
-                                {recentActivity.map((log, idx) => (
+                                {recentActivityLog.map((log, idx) => (
                                     <div key={idx} className="flex items-start gap-4 py-3 border-b last:border-0 border-foreground/10">
                                         <div className={`mt-0.5 p-2 rounded-none ${log.type === 'alert' ? 'bg-destructive/10 text-destructive' : log.type === 'success' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-muted text-foreground'}`}>
                                             {log.type === 'alert' ? <AlertTriangle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
