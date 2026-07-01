@@ -23,7 +23,7 @@ import {
   HelpCircle,
   ChevronDown
 } from 'lucide-react';
-import { apiFetch } from '@/config/api';
+import { apiFetch } from '@/lib/apiClient';
 import {
   Table,
   TableBody,
